@@ -5,9 +5,8 @@ Unlike the ELF loaders bundled with those exploits, this one uses the ptrace
 syscall to bootstrap itself into the `SceRedisServer` process, and then launches
 itself into a new process that keeps running in the background, even when
 playing games. Furthermore, this ELF loader will also resume its execution when
-the PS5 returns from rest mode. Payloads that are loaded are executed in
-induvidual processes, so even if a payload crashes, the ELF loader keeps on
-running.
+the PS5 returns from rest mode. Since payloads are executed in induvidual
+processes, this ELF loader keeps on running even if a payload crashes.
 
 ## Quick-start
 To deploy ps5-payload-elfldr, first launch a kernel exploit that provides
