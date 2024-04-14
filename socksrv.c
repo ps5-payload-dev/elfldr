@@ -185,6 +185,7 @@ int main() {
     return -1;
   }
 
+  syscall(SYS_setsid);
   while((pid=elfldr_find_pid("elfldr.elf")) > 0) {
     if(kill(pid, SIGKILL)) {
       klog_perror("kill");
@@ -196,7 +197,6 @@ int main() {
   syscall(SYS_thr_set_name, -1, "elfldr.elf");
   signal(SIGCHLD, SIG_IGN);
   signal(SIGPIPE, SIG_IGN);
-  syscall(SYS_setsid);
 
   while(1) {
     serve_elfldr(port);
