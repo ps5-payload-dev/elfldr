@@ -240,7 +240,7 @@ elfldr_load(pid_t pid, uint8_t *elf) {
     ctx.base_addr = min_vaddr;
     flags |= MAP_FIXED;
   } else {
-    puts("elfldr_load: ELF type not supported");
+    klog_puts("elfldr_load: ELF type not supported");
     return 0;
   }
 
@@ -359,7 +359,7 @@ elfldr_payload_args(pid_t pid) {
   }
 
   if(kernel_overlap_sockets(pid, master_sock, victim_sock)) {
-    puts("kernel_overlap_sockets failed");
+    klog_puts("kernel_overlap_sockets failed");
     return 0;
   }
 
@@ -650,7 +650,7 @@ elfldr_spawn(const char* progname, int stdio, uint8_t* elf) {
   // at the libkernel entry. Let the kernel assign process parameters accessed
   // via sceKernelGetProcParam()
   if(pt_syscall(pid, 599)) {
-    puts("sys_dynlib_process_needed_and_relocate failed");
+    klog_puts("sys_dynlib_process_needed_and_relocate failed");
     kill(pid, SIGKILL);
     pt_detach(pid);
     return -1;
