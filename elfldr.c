@@ -601,6 +601,36 @@ elfldr_exec(pid_t pid, int stdio, uint8_t* elf) {
 
 
 /**
+ * Set the heap size for libc.
+ **/
+static int
+elfldr_set_heap_size(pid_t pid, size_t size) {
+  intptr_t sceLibcHeapSize;
+  intptr_t libc_param;
+  intptr_t proc_param;
+
+  if(!(proc_param=pt_sceKernelGetProcParam(pid))) {
+    pt_perror(pid, "pt_sceKernelGetProcParam");
+    return -1;
+  }
+
+  if(mdbg_copyout(pid, proc_param+56, &libc_param,
+		  sizeof(libc_param))) {
+    perror("mdbg_copyout");
+    return -1;
+  }
+
+  if(mdbg_copyout(pid, libc_param+16, &sceLibcHeapSize,
+		  sizeof(sceLibcHeapSize))) {
+    perror("mdbg_copyout");
+    return -1;
+  }
+
+  return mdbg_setlong(pid, sceLibcHeapSize, size);
+}
+
+
+/**
  * Execute an ELF inside a new process.
  **/
 pid_t
@@ -616,9 +646,20 @@ elfldr_spawn(const char* progname, int stdio, uint8_t* elf) {
     return -1;
   }
 
-  // The proc is now in the STOP state, with the instruction pointer
-  // pointing at the libkernel entry.
-  // Insert a breakpoint at the eboot entry.
+  // The proc is now in the STOP state, with the instruction pointer pointing
+  // at the libkernel entry. Let the kernel assign process parameters accessed
+  // via sceKernelGetProcParam()
+  if(pt_syscall(pid, 599)) {
+    puts("sys_dynlib_process_needed_and_relocate failed");
+    kill(pid, SIGKILL);
+    pt_detach(pid);
+    return -1;
+  }
+
+  // Reserve 16MiB heap memory for libc.
+  elfldr_set_heap_size(pid, 0x1000000);
+
+  //Insert a breakpoint at the eboot entry.
   if(!(brkpoint=kernel_dynlib_entry_addr(pid, 0))) {
     klog_puts("kernel_dynlib_entry_addr failed");
     kill(pid, SIGKILL);
