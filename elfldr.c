@@ -604,29 +604,45 @@ elfldr_exec(pid_t pid, int stdio, uint8_t* elf) {
  * Set the heap size for libc.
  **/
 static int
-elfldr_set_heap_size(pid_t pid, size_t size) {
+elfldr_set_heap_size(pid_t pid, ssize_t size) {
   intptr_t sceLibcHeapSize;
-  intptr_t libc_param;
-  intptr_t proc_param;
+  intptr_t sceLibcParam;
+  intptr_t sceProcParam;
+  intptr_t Need_sceLibc;
 
-  if(!(proc_param=pt_sceKernelGetProcParam(pid))) {
+  if(!(sceProcParam=pt_sceKernelGetProcParam(pid))) {
     pt_perror(pid, "pt_sceKernelGetProcParam");
     return -1;
   }
 
-  if(mdbg_copyout(pid, proc_param+56, &libc_param,
-		  sizeof(libc_param))) {
+  if(mdbg_copyout(pid, sceProcParam+56, &sceLibcParam,
+		  sizeof(sceLibcParam))) {
     perror("mdbg_copyout");
     return -1;
   }
 
-  if(mdbg_copyout(pid, libc_param+16, &sceLibcHeapSize,
+  if(mdbg_copyout(pid, sceLibcParam+16, &sceLibcHeapSize,
 		  sizeof(sceLibcHeapSize))) {
     perror("mdbg_copyout");
     return -1;
   }
 
-  return mdbg_setlong(pid, sceLibcHeapSize, size);
+  if(mdbg_setlong(pid, sceLibcHeapSize, size)) {
+    perror("mdbg_setlong");
+    return -1;
+  }
+
+  if(size != -1) {
+    return 0;
+  }
+
+  if(mdbg_copyout(pid, sceLibcParam+72, &Need_sceLibc,
+		  sizeof(Need_sceLibc))) {
+    perror("mdbg_copyout");
+    return -1;
+  }
+
+  return mdbg_setlong(pid, sceLibcParam+32, Need_sceLibc);
 }
 
 
@@ -656,8 +672,8 @@ elfldr_spawn(const char* progname, int stdio, uint8_t* elf) {
     return -1;
   }
 
-  // Reserve 16MiB heap memory for libc.
-  elfldr_set_heap_size(pid, 0x1000000);
+  // Allow libc to allocate arbitrary amount of memory.
+  elfldr_set_heap_size(pid, -1);
 
   //Insert a breakpoint at the eboot entry.
   if(!(brkpoint=kernel_dynlib_entry_addr(pid, 0))) {
