@@ -65,6 +65,7 @@ typedef struct elfldr_ctx {
 
   intptr_t base_addr;
   size_t   base_size;
+  void*    base_mirror;
 } elfldr_ctx_t;
 
 
@@ -83,10 +84,12 @@ int sceKernelSpawn(int *pid, int dbg, const char *path, char *root,
 **/
 static int
 r_relative(elfldr_ctx_t *ctx, Elf64_Rela* rela) {
-  intptr_t loc = ctx->base_addr + rela->r_offset;
+  intptr_t* loc = ctx->base_mirror + rela->r_offset;
   intptr_t val = ctx->base_addr + rela->r_addend;
 
-  return mdbg_copyin(ctx->pid, &val, loc, sizeof(val));
+  *loc = val;
+
+  return 0;
 }
 
 
@@ -95,28 +98,17 @@ r_relative(elfldr_ctx_t *ctx, Elf64_Rela* rela) {
  **/
 static int
 pt_load(elfldr_ctx_t *ctx, Elf64_Phdr *phdr) {
-  intptr_t addr = ctx->base_addr + phdr->p_vaddr;
-  size_t memsz = ROUND_PG(phdr->p_memsz);
+  void* data = ctx->base_mirror + phdr->p_vaddr;
 
   if(!phdr->p_memsz) {
     return 0;
-  }
-
-  if((addr=pt_mmap(ctx->pid, addr, memsz, PROT_WRITE | PROT_READ,
-		   MAP_FIXED | MAP_ANONYMOUS | MAP_PRIVATE,
-		   -1, 0)) == -1) {
-    pt_perror(ctx->pid, "mmap");
-    return -1;
   }
 
   if(!phdr->p_filesz) {
     return 0;
   }
 
-  if(mdbg_copyin(ctx->pid, ctx->elf+phdr->p_offset, addr, phdr->p_filesz)) {
-    pt_perror(ctx->pid, "mdbg_copyin");
-    return -1;
-  }
+  memcpy(data, ctx->elf+phdr->p_offset, phdr->p_filesz);
 
   return 0;
 }
@@ -128,29 +120,17 @@ pt_load(elfldr_ctx_t *ctx, Elf64_Phdr *phdr) {
 static int
 pt_reload(elfldr_ctx_t *ctx, Elf64_Phdr *phdr) {
   intptr_t addr = ctx->base_addr + phdr->p_vaddr;
+  void* data = ctx->base_mirror + phdr->p_vaddr;
   size_t memsz = ROUND_PG(phdr->p_memsz);
   int prot = PFLAGS(phdr->p_flags);
   int alias_fd = -1;
   int shm_fd = -1;
-  void* data = 0;
   int error = 0;
 
-  if((data=mmap(0, memsz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE,
-		-1, 0)) == MAP_FAILED) {
-    klog_perror("mmap");
-    return -1;
-  }
-
-  // Backup data
-  else if(mdbg_copyout(ctx->pid, addr, data, memsz)) {
-    pt_perror(ctx->pid, "mdbg_copyout");
-    error = -1;
-  }
-
   // Create shm with executable permissions.
-  else if((shm_fd=pt_jitshm_create(ctx->pid, 0, memsz,
-				   prot | PROT_READ | PROT_WRITE)) < 0) {
-    pt_perror(ctx->pid, "jitshm_create");
+  if((shm_fd=pt_jitshm_create(ctx->pid, 0, memsz,
+			      prot | PROT_READ | PROT_WRITE)) < 0) {
+    pt_perror(ctx->pid, "pt_jitshm_create");
     error = -1;
   }
 
@@ -158,35 +138,33 @@ pt_reload(elfldr_ctx_t *ctx, Elf64_Phdr *phdr) {
   else if((addr=pt_mmap(ctx->pid, addr, memsz, prot,
 			MAP_FIXED | MAP_PRIVATE,
 			shm_fd, 0)) == -1) {
-    pt_perror(ctx->pid, "mmap");
+    pt_perror(ctx->pid, "pt_mmap");
     error = -1;
   }
 
   // Create an shm alias fd with write permissions.
   else if((alias_fd=pt_jitshm_alias(ctx->pid, shm_fd,
 				    PROT_READ | PROT_WRITE)) < 0) {
-    pt_perror(ctx->pid, "jitshm_alias");
+    pt_perror(ctx->pid, "pt_jitshm_alias");
     error = -1;
   }
 
   // Map shm alias into a writable address space.
-  else if((addr=pt_mmap(ctx->pid, 0, memsz, PROT_READ | PROT_WRITE, MAP_SHARED,
-			alias_fd, 0)) == -1) {
-    pt_perror(ctx->pid, "mmap");
+  else if((addr=pt_mmap(ctx->pid, 0, memsz, PROT_READ | PROT_WRITE,
+			MAP_SHARED, alias_fd, 0)) == -1) {
+    pt_perror(ctx->pid, "pt_mmap");
     error = -1;
   }
 
   // Resore data
   else {
     if(mdbg_copyin(ctx->pid, data, addr, memsz)) {
-      pt_perror(ctx->pid, "mdbg_copyin");
+      klog_perror("mdbg_copyin");
       error = -1;
     }
-    pt_msync(ctx->pid, addr, memsz, MS_SYNC);
     pt_munmap(ctx->pid, addr, memsz);
   }
 
-  munmap(data, memsz);
   pt_close(ctx->pid, alias_fd);
   pt_close(ctx->pid, shm_fd);
 
@@ -250,6 +228,12 @@ elfldr_load(pid_t pid, uint8_t *elf) {
     pt_perror(pid, "pt_mmap");
     return 0;
   }
+  if((ctx.base_mirror=mmap(0, ctx.base_size, prot, flags,
+			   -1, 0)) == MAP_FAILED) {
+    pt_munmap(pid, ctx.base_addr, ctx.base_size);
+    klog_perror("mmap");
+    return 0;
+  }
 
   // Parse program headers.
   for(int i=0; i<ehdr->e_phnum && !error; i++) {
@@ -276,6 +260,11 @@ elfldr_load(pid_t pid, uint8_t *elf) {
     }
   }
 
+  if(mdbg_copyin(ctx.pid, ctx.base_mirror, ctx.base_addr, ctx.base_size)) {
+    klog_perror("mdbg_copyin");
+    error = 1;
+  }
+
   // Set protection bits on mapped segments.
   for(int i=0; i<ehdr->e_phnum && !error; i++) {
     if(phdr[i].p_type != PT_LOAD || phdr[i].p_memsz == 0) {
@@ -299,6 +288,7 @@ elfldr_load(pid_t pid, uint8_t *elf) {
     error = 1;
   }
 
+  munmap(ctx.base_mirror, ctx.base_size);
   if(error) {
     pt_munmap(pid, ctx.base_addr, ctx.base_size);
     return 0;
@@ -306,8 +296,6 @@ elfldr_load(pid_t pid, uint8_t *elf) {
 
   return ctx.base_addr + ehdr->e_entry;
 }
-
-
 
 
 /**
