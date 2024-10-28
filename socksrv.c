@@ -79,13 +79,13 @@ on_connection(int fd) {
   uint8_t* elf;
   size_t len;
 
-  // Read ELF from the socket
-  if((len=readsock(fd, &elf)) < 4) {
+  if(!(len=readsock(fd, &elf))) {
     return;
   }
 
-  // Check for the ELF magic header
-  if(!memcmp(elf, "\x7f\x45\x4c\x46", 4)) {
+  if(elfldr_sanity_check(elf, len)) {
+    write(fd, "[elfldr.elf] Malformed ELF file\n\r\0", 34);
+  } else {
     elfldr_spawn("payload.elf", fd, elf);
   }
 

@@ -172,6 +172,33 @@ pt_reload(elfldr_ctx_t *ctx, Elf64_Phdr *phdr) {
 }
 
 
+int
+elfldr_sanity_check(uint8_t *elf, size_t elf_size) {
+  Elf64_Ehdr *ehdr = (Elf64_Ehdr*)elf;
+  Elf64_Phdr *phdr;
+
+  if(elf_size < sizeof(Elf64_Ehdr) ||
+     elf_size < sizeof(Elf64_Phdr) + ehdr->e_phoff ||
+     elf_size < sizeof(Elf64_Shdr) + ehdr->e_shoff) {
+    return -1;
+  }
+
+  if(ehdr->e_ident[0] != 0x7f || ehdr->e_ident[1] != 'E' ||
+     ehdr->e_ident[2] != 'L'  || ehdr->e_ident[3] != 'F') {
+    return -1;
+  }
+
+  phdr = (Elf64_Phdr*)(elf + ehdr->e_phoff);
+  for(int i=0; i<ehdr->e_phnum; i++) {
+    if(phdr[i].p_offset + phdr[i].p_filesz > elf_size) {
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+
 /**
  * Load an ELF into the address space of a process with the given pid.
  **/
@@ -187,13 +214,6 @@ elfldr_load(pid_t pid, uint8_t *elf) {
   size_t max_vaddr = 0;
 
   int error = 0;
-
-  // Sanity check, we only support 64bit ELFs.
-  if(ehdr->e_ident[0] != 0x7f || ehdr->e_ident[1] != 'E' ||
-     ehdr->e_ident[2] != 'L'  || ehdr->e_ident[3] != 'F') {
-    klog_puts("elfldr_load: Malformed ELF file");
-    return 0;
-  }
 
   // Compute size of virtual memory region.
   for(int i=0; i<ehdr->e_phnum; i++) {

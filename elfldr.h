@@ -23,4 +23,6 @@ pid_t elfldr_find_pid(const char* name);
 pid_t elfldr_spawn(const char* progname, int stdio, uint8_t *elf);
 int   elfldr_exec(pid_t pid, int stdio, uint8_t* elf);
 
+int elfldr_sanity_check(uint8_t *elf, size_t elf_size);
+
 int elfldr_raise_privileges(pid_t pid);

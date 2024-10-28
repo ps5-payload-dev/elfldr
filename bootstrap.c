@@ -39,6 +39,11 @@ main() {
 
   klog_puts("Spawning elfldr.elf...");
 
+  if(elfldr_sanity_check(socksrv_elf, socksrv_elf_len)) {
+    klog_puts("socksrv.elf is corrupted");
+    return -1;
+  }
+
   // backup my privileges
   if(!(vnode=kernel_get_proc_rootdir(mypid))) {
     klog_puts("kernel_get_proc_rootdir failed");

@@ -50,6 +50,11 @@ main() {
 
   klog_puts("Bootstrapping elfldr.elf...");
 
+  if(elfldr_sanity_check(bootstrap_elf, bootstrap_elf_len)) {
+    klog_puts("bootstrap.elf is corrupted");
+    return -1;
+  }
+
   // enable debugging with ptrace
   if(kernel_get_qaflags(qa_flags)) {
     klog_puts("kernel_get_qa_flags failed");
