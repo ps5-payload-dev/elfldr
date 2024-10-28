@@ -34,17 +34,21 @@ along with this program; see the file COPYING. If not, see
 /**
  * Read an ELF from a given file descriptor.
  **/
-static uint8_t*
-readsock(int fd) {
+static size_t
+readsock(int fd, uint8_t** elf) {
   uint8_t buf[0x4000];
   uint8_t* data = 0;
+  uint8_t* bak = 0;
   off_t offset = 0;
   ssize_t len;
 
-  while((len=read(fd, buf, sizeof(buf)))) {
-    data = realloc(data, offset + len + 1);
-    if(data == 0) {
+  while((len=read(fd, buf, sizeof(buf))) > 0) {
+    bak = data;
+    if(!(data=realloc(data, offset+len+1))) {
       klog_perror("realloc");
+      if(bak) {
+        free(bak);
+      }
       return 0;
     }
 
@@ -52,9 +56,18 @@ readsock(int fd) {
     offset += len;
   }
 
-  data[offset] = 0;
+  if(len < 0) {
+    klog_perror("read");
+    free(data);
+    return 0;
+  }
 
-  return data;
+  if(offset) {
+    data[offset] = 0;
+    *elf = data;
+  }
+
+  return offset;
 }
 
 
@@ -64,9 +77,10 @@ readsock(int fd) {
 static void
 on_connection(int fd) {
   uint8_t* elf;
+  size_t len;
 
   // Read ELF from the socket
-  if(!(elf=readsock(fd))) {
+  if((len=readsock(fd, &elf)) < 4) {
     return;
   }
 
