@@ -46,7 +46,7 @@ socksrv_elf.c: socksrv.elf
 	xxd -i $^ > $@
 
 elfldr.elf: main.o elfldr.o pt.o
-	$(LD) -lSceLibcInternal -o $@ $^
+	$(CC) -o $@ $^
 
 clean:
 	rm -f bootstrap_elf.c socksrv_elf.c *.o *.elf
