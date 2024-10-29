@@ -21,7 +21,9 @@ along with this program; see the file COPYING. If not, see
 #include <ps5/klog.h>
 
 #include "elfldr.h"
+#include "notify.h"
 #include "pt.h"
+
 
 #include "socksrv_elf.c"
 
@@ -37,6 +39,7 @@ main() {
   intptr_t vnode;
   int ret;
 
+  notify("Spawning elfldr.elf...");
   klog_puts("Spawning elfldr.elf...");
 
   if(elfldr_sanity_check(socksrv_elf, socksrv_elf_len)) {

@@ -18,6 +18,7 @@ along with this program; see the file COPYING. If not, see
 #include <ps5/klog.h>
 
 #include "elfldr.h"
+#include "notify.h"
 #include "pt.h"
 
 #include "bootstrap_elf.c"
@@ -48,6 +49,7 @@ main() {
   pid_t vpid;
   int ret;
 
+  notify("Bootstrapping elfldr.elf...");
   klog_puts("Bootstrapping elfldr.elf...");
 
   if(elfldr_sanity_check(bootstrap_elf, bootstrap_elf_len)) {
