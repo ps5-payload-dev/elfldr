@@ -138,7 +138,7 @@ serve_elfldr(uint16_t port, int notify_user) {
     ifaddr_wait = 0;
 
     if(notify_user) {
-      notify("Serving ELF loader on %s:%d (%s)\n", ip, port, ifa->ifa_name);
+      notify("Serving ELF loader on %s:%d (%s)", ip, port, ifa->ifa_name);
     }
     klog_printf("Serving ELF loader on %s:%d (%s)\n", ip, port, ifa->ifa_name);
   }
