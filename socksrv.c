@@ -98,8 +98,7 @@ on_connection(int fd) {
  * Serve ELF loader via a socket.
  **/
 static int
-serve_elfldr(uint16_t port) {
-  static int notify_user = 1;
+serve_elfldr(uint16_t port, int notify_user) {
   struct sockaddr_in srvaddr;
   struct sockaddr_in cliaddr;
   char ip[INET_ADDRSTRLEN];
@@ -195,7 +194,8 @@ serve_elfldr(uint16_t port) {
  *
  **/
 int main() {
-  const int port = 9021;
+  int notify_user = 1;
+  int port = 9021;
   pid_t pid;
 
   klog_printf("Socket server was compiled at %s %s\n", __DATE__, __TIME__);
@@ -219,7 +219,8 @@ int main() {
   signal(SIGPIPE, SIG_IGN);
 
   while(1) {
-    serve_elfldr(port);
+    serve_elfldr(port, notify_user);
+    notify_user = 0;
     sleep(3);
   }
 
