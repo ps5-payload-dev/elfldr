@@ -99,7 +99,7 @@ on_connection(int fd) {
  **/
 static int
 serve_elfldr(uint16_t port) {
-  static int notify_user = 0;
+  static int notify_user = 1;
   struct sockaddr_in srvaddr;
   struct sockaddr_in cliaddr;
   char ip[INET_ADDRSTRLEN];
@@ -138,13 +138,13 @@ serve_elfldr(uint16_t port) {
     }
     ifaddr_wait = 0;
 
-    if(!notify_user) {
+    if(notify_user) {
       notify("Serving ELF loader on %s:%d (%s)\n", ip, port, ifa->ifa_name);
-      notify_user = 1;
     }
     klog_printf("Serving ELF loader on %s:%d (%s)\n", ip, port, ifa->ifa_name);
   }
 
+  notify_user = 1;
   freeifaddrs(ifaddr);
 
   if(ifaddr_wait) {
