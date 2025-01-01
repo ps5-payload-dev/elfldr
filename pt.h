@@ -34,9 +34,6 @@ int pt_getint(pid_t pid, intptr_t addr);
 long pt_syscall(pid_t pid, int sysno, ...);
 intptr_t pt_resolve(pid_t pid, const char* nid);
 
-int pt_jitshm_create(pid_t pid, intptr_t name, size_t size, int flags);
-int pt_jitshm_alias(pid_t pid, int fd, int flags);
-
 intptr_t pt_mmap(pid_t pid, intptr_t addr, size_t len, int prot, int flags,
 		 int fd, off_t off);
 int pt_msync(pid_t, intptr_t addr, size_t len, int flags);
