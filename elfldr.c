@@ -190,8 +190,9 @@ elfldr_load(pid_t pid, uint8_t *elf) {
     pt_perror(pid, "pt_mmap");
     return 0;
   }
-  if((ctx.base_mirror=mmap(0, ctx.base_size, prot, flags,
-			   -1, 0)) == MAP_FAILED) {
+
+  if((ctx.base_mirror=(void*)__syscall(SYS_mmap, 0, ctx.base_size, prot,
+				       flags, -1, 0)) == MAP_FAILED) {
     pt_munmap(pid, ctx.base_addr, ctx.base_size);
     klog_perror("mmap");
     return 0;
