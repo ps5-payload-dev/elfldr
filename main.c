@@ -62,10 +62,12 @@ main() {
     klog_puts("kernel_get_qa_flags failed");
     return -1;
   }
-  qa_flags[1] |= 0x03;
-  if(kernel_set_qaflags(qa_flags)) {
-    klog_puts("kernel_set_qa_flags failed");
-    return -1;
+  if(!(qa_flags[1] & 0x03)) {
+    qa_flags[1] |= 0x03;
+    if(kernel_set_qaflags(qa_flags)) {
+      klog_puts("kernel_set_qa_flags failed");
+      return -1;
+    }
   }
 
   // backup my privileges
