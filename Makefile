@@ -23,7 +23,7 @@ else
     $(error PS5_PAYLOAD_SDK is undefined)
 endif
 
-CFLAGS := -Wall -Werror -O0
+CFLAGS := -Wall -Werror -O1
 
 all: elfldr.elf
 

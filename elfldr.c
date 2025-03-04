@@ -184,17 +184,16 @@ elfldr_load(pid_t pid, uint8_t *elf) {
     return 0;
   }
 
+  if(!(ctx.base_mirror=malloc(ctx.base_size))) {
+    klog_perror("malloc");
+    return 0;
+  }
+
   // Reserve an address space of sufficient size.
   if((ctx.base_addr=pt_mmap(pid, ctx.base_addr, ctx.base_size, prot,
 			    flags, -1, 0)) == -1) {
     pt_perror(pid, "pt_mmap");
-    return 0;
-  }
-
-  if((ctx.base_mirror=mmap(0, ctx.base_size, prot, flags,
-			   -1, 0)) == MAP_FAILED) {
-    pt_munmap(pid, ctx.base_addr, ctx.base_size);
-    klog_perror("mmap");
+    free(ctx.base_mirror);
     return 0;
   }
 
@@ -255,7 +254,8 @@ elfldr_load(pid_t pid, uint8_t *elf) {
     error = 1;
   }
 
-  munmap(ctx.base_mirror, ctx.base_size);
+  free(ctx.base_mirror);
+
   if(error) {
     pt_munmap(pid, ctx.base_addr, ctx.base_size);
     return 0;
