@@ -77,8 +77,13 @@ readsock(int fd, uint8_t** elf) {
  **/
 static void
 on_connection(int fd) {
+  int optval = 1;
   uint8_t* elf;
   size_t len;
+
+  if(setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &optval, sizeof(optval)) < 0) {
+    return;
+  }
 
   if(!(len=readsock(fd, &elf))) {
     return;
