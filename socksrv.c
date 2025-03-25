@@ -103,57 +103,12 @@ on_connection(int fd) {
  * Serve ELF loader via a socket.
  **/
 static int
-serve_elfldr(uint16_t port, int notify_user) {
+serve_elfldr(uint16_t port) {
   struct sockaddr_in srvaddr;
   struct sockaddr_in cliaddr;
-  char ip[INET_ADDRSTRLEN];
-  struct ifaddrs *ifaddr;
-  int ifaddr_wait = 1;
   socklen_t socklen;
   int connfd;
   int srvfd;
-
-  if(getifaddrs(&ifaddr) == -1) {
-    klog_perror("getifaddrs");
-    return -1;
-  }
-
-  // Enumerate all AF_INET IPs
-  for(struct ifaddrs *ifa=ifaddr; ifa!=NULL; ifa=ifa->ifa_next) {
-    if(ifa->ifa_addr == NULL) {
-      continue;
-    }
-
-    if(ifa->ifa_addr->sa_family != AF_INET) {
-      continue;
-    }
-
-    // Skip localhost
-    if(!strncmp("lo", ifa->ifa_name, 2)) {
-      continue;
-    }
-
-    struct sockaddr_in *in = (struct sockaddr_in*)ifa->ifa_addr;
-    inet_ntop(AF_INET, &(in->sin_addr), ip, sizeof(ip));
-
-    // Skip interfaces without an IP
-    if(!strncmp("0.", ip, 2)) {
-      continue;
-    }
-    ifaddr_wait = 0;
-
-    if(notify_user) {
-      notify("Serving ELF loader on %s:%d (%s)", ip, port, ifa->ifa_name);
-    }
-    klog_printf("Serving ELF loader on %s:%d (%s)\n", ip, port, ifa->ifa_name);
-  }
-
-  notify_user = 1;
-  freeifaddrs(ifaddr);
-
-  if(ifaddr_wait) {
-    return 0;
-  }
 
   if((srvfd=socket(AF_INET, SOCK_STREAM, 0)) < 0) {
     klog_perror("socket");
@@ -195,11 +150,43 @@ serve_elfldr(uint16_t port, int notify_user) {
 }
 
 
+static int
+notify_address(const char* prefix, int port) {
+  char ip[INET_ADDRSTRLEN] = "127.0.0.1";
+  struct ifaddrs *ifaddr;
+
+  if(getifaddrs(&ifaddr) == -1) {
+    klog_perror("getifaddrs");
+    return -1;
+  }
+
+  // Enumerate all AF_INET IPs
+  for(struct ifaddrs *ifa=ifaddr; ifa!=NULL; ifa=ifa->ifa_next) {
+    if(ifa->ifa_addr == NULL) {
+      continue;
+    }
+
+    if(ifa->ifa_addr->sa_family != AF_INET) {
+      continue;
+    }
+
+    struct sockaddr_in *in = (struct sockaddr_in*)ifa->ifa_addr;
+    inet_ntop(AF_INET, &(in->sin_addr), ip, sizeof(ip));
+  }
+
+  freeifaddrs(ifaddr);
+
+  notify("%s %s:%d", prefix, ip, port);
+  klog_printf("%s %s:%d\n", prefix, ip, port);
+
+  return 0;
+}
+
+
 /**
  *
  **/
 int main() {
-  int notify_user = 1;
   int port = 9021;
   pid_t pid;
 
@@ -223,12 +210,11 @@ int main() {
   signal(SIGCHLD, SIG_IGN);
   signal(SIGPIPE, SIG_IGN);
 
+  notify_address("Serving ELF loader on", port);
   while(1) {
-    serve_elfldr(port, notify_user);
-    notify_user = 0;
+    serve_elfldr(port);
     sleep(3);
   }
 
   return 0;
 }
-
