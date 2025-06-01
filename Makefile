@@ -35,18 +35,21 @@ main.o: bootstrap_elf.c
 
 bootstrap.elf: bootstrap.o elfldr.o pt.o notify.o
 	$(CC) -o $@ $^
+	$(STRIP) $@
 
 bootstrap_elf.c: bootstrap.elf
 	xxd -i $^ > $@
 
 socksrv.elf: socksrv.o elfldr.o pt.o notify.o
 	$(CC) -o $@ $^
+	$(STRIP) $@
 
 socksrv_elf.c: socksrv.elf
 	xxd -i $^ > $@
 
 elfldr.elf: main.o elfldr.o pt.o notify.o
 	$(CC) -o $@ $^
+	$(STRIP) $@
 
 clean:
 	rm -f bootstrap_elf.c socksrv_elf.c *.o *.elf
