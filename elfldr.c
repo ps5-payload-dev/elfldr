@@ -74,10 +74,6 @@ typedef struct elfldr_ctx {
 static const char* SceSpZeroConf = "/system/vsh/app/NPXS40112/eboot.bin";
 
 
-int sceKernelSpawn(int *pid, int dbg, const char *path, char *root,
-		   const char* argv[]);
-
-
 /**
 * Parse a R_X86_64_RELATIVE relocatable.
 **/
@@ -565,21 +561,94 @@ elfldr_set_heap_size(pid_t pid, ssize_t size) {
 }
 
 
+static int
+sys_budget_set(long budget) {
+  return __syscall(0x23b, budget);
+}
+
+
+static int
+elfldr_rfork_entry(void* progname) {
+  char* const argv[] = {(char*)progname, 0};
+
+  if(sys_budget_set(0)) {
+    klog_perror("sys_budget_set");
+    return -1;
+  }
+  if(open("/dev/deci_stdin", O_RDONLY) < 0) {
+    klog_perror("open");
+    return -1;
+  }
+  if(open("/dev/deci_stdout", O_WRONLY) < 0) {
+    klog_perror("open");
+    return -1;
+  }
+  if(open("/dev/deci_stderr", O_WRONLY) < 0) {
+    klog_perror("open");
+    return -1;
+  }
+
+  if(ptrace(PT_TRACE_ME, 0, 0, 0)) {
+    klog_perror("ptrace");
+    return -1;
+  }
+
+  execve(SceSpZeroConf, argv, 0);
+  klog_perror("execve");
+  return -1;
+}
+
+
 /**
  * Execute an ELF inside a new process.
  **/
 pid_t
 elfldr_spawn(const char* progname, int stdio, uint8_t* elf) {
-  const char* argv[] = {progname, 0};
+
   uint8_t int3instr = 0xcc;
+  struct kevent evt;
   intptr_t brkpoint;
   uint8_t orginstr;
-  pid_t pid = -1;
+  void *stack;
+  pid_t pid;
+  int kq;
 
-  if(sceKernelSpawn(&pid, 1, SceSpZeroConf, 0, argv)) {
-    LOG_PERROR("sceKernelSpawn");
+  if((kq=kqueue()) < 0) {
+    LOG_PERROR("kqueue");
     return -1;
   }
+
+  if(!(stack=malloc(PAGE_SIZE))) {
+    LOG_PERROR("malloc");
+    close(kq);
+    return -1;
+  }
+
+  if((pid=rfork_thread(RFPROC | RFCFDG | RFMEM, stack+PAGE_SIZE-8,
+		       elfldr_rfork_entry, (void*)progname)) < 0) {
+    LOG_PERROR("rfork_thread");
+    free(stack);
+    close(kq);
+    return -1;
+  }
+
+  EV_SET(&evt, pid, EVFILT_PROC, EV_ADD, NOTE_EXEC, 0, 0);
+  if(kevent(kq, &evt, 1, &evt, 1, 0) < 0) {
+    LOG_PERROR("kevent");
+    free(stack);
+    close(kq);
+    return -1;
+  }
+
+  if(waitpid(pid, 0, 0) < 0) {
+    LOG_PERROR("waitpid");
+    free(stack);
+    close(kq);
+    return -1;
+  }
+
+  free(stack);
+  close(kq);
 
   // The proc is now in the STOP state, with the instruction pointer pointing
   // at the libkernel entry. Let the kernel assign process parameters accessed

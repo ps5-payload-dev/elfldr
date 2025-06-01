@@ -25,18 +25,6 @@ along with this program; see the file COPYING. If not, see
 
 
 /**
- * sceKernelSpawn() is not available in libkernel_web, which is what is used by
- * the webkit exploit entry point. However, we do not actually use it initially,
- * hence we just define an empty stub to silence the linker.
- **/
-int
-sceKernelSpawn(int *pid, int dbg, const char *path, char *root,
-	       char* argv[]) {
-  return -1;
-}
-
-
-/**
  * We are running inside bdj.elf, attach to SceRedisServer and run bootstrap.elf.
  **/
 int
