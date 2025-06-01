@@ -585,7 +585,7 @@ elfldr_spawn(const char* progname, int stdio, uint8_t* elf) {
   // at the libkernel entry. Let the kernel assign process parameters accessed
   // via sceKernelGetProcParam()
   if(pt_syscall(pid, 599)) {
-    LOG_PUTS("sys_dynlib_process_needed_and_relocate failed");
+    LOG_PT_PERROR(pid, "sys_dynlib_process_needed_and_relocate");
     kill(pid, SIGKILL);
     pt_detach(pid);
     return -1;
