@@ -26,9 +26,9 @@ along with this program; see the file COPYING. If not, see
 #include <sys/syscall.h>
 
 #include <ps5/kernel.h>
-#include <ps5/klog.h>
 
 #include "elfldr.h"
+#include "log.h"
 #include "notify.h"
 
 
@@ -46,7 +46,7 @@ readsock(int fd, uint8_t** elf) {
   while((len=read(fd, buf, sizeof(buf))) > 0) {
     bak = data;
     if(!(data=realloc(data, offset+len+1))) {
-      klog_perror("realloc");
+      LOG_PERROR("realloc");
       if(bak) {
         free(bak);
       }
@@ -58,7 +58,7 @@ readsock(int fd, uint8_t** elf) {
   }
 
   if(len < 0) {
-    klog_perror("read");
+    LOG_PERROR("read");
     free(data);
     return 0;
   }
@@ -111,12 +111,12 @@ serve_elfldr(uint16_t port) {
   int srvfd;
 
   if((srvfd=socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    klog_perror("socket");
+    LOG_PERROR("socket");
     return -1;
   }
 
   if(setsockopt(srvfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
-    klog_perror("setsockopt");
+    LOG_PERROR("setsockopt");
     return -1;
   }
 
@@ -126,19 +126,19 @@ serve_elfldr(uint16_t port) {
   srvaddr.sin_port = htons(port);
 
   if(bind(srvfd, (struct sockaddr*)&srvaddr, sizeof(srvaddr)) != 0) {
-    klog_perror("bind");
+    LOG_PERROR("bind");
     return -1;
   }
 
   if(listen(srvfd, 5) != 0) {
-    klog_perror("listen");
+    LOG_PERROR("listen");
     return -1;
   }
 
   while(1) {
     socklen = sizeof(cliaddr);
     if((connfd=accept(srvfd, (struct sockaddr*)&cliaddr, &socklen)) < 0) {
-      klog_perror("accept");
+      LOG_PERROR("accept");
       break;
     }
 
@@ -156,7 +156,7 @@ notify_address(const char* prefix, int port) {
   struct ifaddrs *ifaddr;
 
   if(getifaddrs(&ifaddr) == -1) {
-    klog_perror("getifaddrs");
+    LOG_PERROR("getifaddrs");
     return -1;
   }
 
@@ -177,7 +177,7 @@ notify_address(const char* prefix, int port) {
   freeifaddrs(ifaddr);
 
   notify("%s %s:%d", prefix, ip, port);
-  klog_printf("%s %s:%d\n", prefix, ip, port);
+  LOG_PRINTF("%s %s:%d\n", prefix, ip, port);
 
   return 0;
 }
@@ -190,17 +190,17 @@ int main() {
   int port = 9021;
   pid_t pid;
 
-  klog_printf("Socket server was compiled at %s %s\n", __DATE__, __TIME__);
+  LOG_PRINTF("Socket server was compiled at %s %s\n", __DATE__, __TIME__);
 
   if(chdir("/")) {
-    klog_perror("chdir");
+    LOG_PERROR("chdir");
     return -1;
   }
 
   syscall(SYS_setsid);
   while((pid=elfldr_find_pid("elfldr.elf")) > 0) {
     if(kill(pid, SIGKILL)) {
-      klog_perror("kill");
+      LOG_PERROR("kill");
       _exit(-1);
     }
     sleep(1);

@@ -34,10 +34,10 @@ along with this program; see the file COPYING. If not, see
 #include <sys/wait.h>
 
 #include <ps5/kernel.h>
-#include <ps5/klog.h>
 #include <ps5/mdbg.h>
 
 #include "elfldr.h"
+#include "log.h"
 #include "pt.h"
 
 
@@ -180,19 +180,19 @@ elfldr_load(pid_t pid, uint8_t *elf) {
     ctx.base_addr = min_vaddr;
     flags |= MAP_FIXED;
   } else {
-    klog_puts("elfldr_load: ELF type not supported");
+    LOG_PUTS("elfldr_load: ELF type not supported");
     return 0;
   }
 
   if(!(ctx.base_mirror=malloc(ctx.base_size))) {
-    klog_perror("malloc");
+    LOG_PERROR("malloc");
     return 0;
   }
 
   // Reserve an address space of sufficient size.
   if((ctx.base_addr=pt_mmap(pid, ctx.base_addr, ctx.base_size, prot,
 			    flags, -1, 0)) == -1) {
-    pt_perror(pid, "pt_mmap");
+    LOG_PT_PERROR(pid, "pt_mmap");
     free(ctx.base_mirror);
     return 0;
   }
@@ -223,7 +223,7 @@ elfldr_load(pid_t pid, uint8_t *elf) {
   }
 
   if(mdbg_copyin(ctx.pid, ctx.base_mirror, ctx.base_addr, ctx.base_size)) {
-    klog_perror("mdbg_copyin");
+    LOG_PERROR("mdbg_copyin");
     error = 1;
   }
 
@@ -237,20 +237,20 @@ elfldr_load(pid_t pid, uint8_t *elf) {
       if(kernel_mprotect(pid, ctx.base_addr + phdr[i].p_vaddr,
                          ROUND_PG(phdr[i].p_memsz),
                          PFLAGS(phdr[i].p_flags))) {
-	perror("kernel_mprotect");
+	LOG_PERROR("kernel_mprotect");
       }
     } else {
       if(pt_mprotect(pid, ctx.base_addr + phdr[i].p_vaddr,
 		     ROUND_PG(phdr[i].p_memsz),
 		     PFLAGS(phdr[i].p_flags))) {
-	pt_perror(pid, "pt_mprotect");
+	LOG_PT_PERROR(pid, "pt_mprotect");
 	error = 1;
       }
     }
   }
 
   if(pt_msync(pid, ctx.base_addr, ctx.base_size, MS_SYNC)) {
-    pt_perror(pid, "pt_msync");
+    LOG_PT_PERROR(pid, "pt_msync");
     error = 1;
   }
 
@@ -278,12 +278,12 @@ elfldr_payload_args(pid_t pid) {
 
   if((buf=pt_mmap(pid, 0, PAGE_SIZE, PROT_READ | PROT_WRITE,
 		  MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == -1) {
-    pt_perror(pid, "pt_mmap");
+    LOG_PT_PERROR(pid, "pt_mmap");
     return 0;
   }
 
   if((master_sock=pt_socket(pid, AF_INET6, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
-    pt_perror(pid, "pt_socket");
+    LOG_PT_PERROR(pid, "pt_socket");
     return 0;
   }
 
@@ -294,12 +294,12 @@ elfldr_payload_args(pid_t pid) {
   mdbg_setint(pid, buf+0x10, 0);
   mdbg_setint(pid, buf+0x14, 0);
   if(pt_setsockopt(pid, master_sock, IPPROTO_IPV6, IPV6_2292PKTOPTIONS, buf, 24)) {
-    pt_perror(pid, "pt_setsockopt");
+    LOG_PT_PERROR(pid, "pt_setsockopt");
     return 0;
   }
 
   if((victim_sock=pt_socket(pid, AF_INET6, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
-    pt_perror(pid, "pt_socket");
+    LOG_PT_PERROR(pid, "pt_socket");
     return 0;
   }
 
@@ -309,17 +309,17 @@ elfldr_payload_args(pid_t pid) {
   mdbg_setint(pid, buf+0x0c, 0);
   mdbg_setint(pid, buf+0x10, 0);
   if(pt_setsockopt(pid, victim_sock, IPPROTO_IPV6, IPV6_PKTINFO, buf, 20)) {
-    pt_perror(pid, "pt_setsockopt");
+    LOG_PT_PERROR(pid, "pt_setsockopt");
     return 0;
   }
 
   if(kernel_overlap_sockets(pid, master_sock, victim_sock)) {
-    klog_puts("kernel_overlap_sockets failed");
+    LOG_PUTS("kernel_overlap_sockets failed");
     return 0;
   }
 
   if(pt_pipe(pid, buf)) {
-    pt_perror(pid, "pt_pipe");
+    LOG_PT_PERROR(pid, "pt_pipe");
     return 0;
   }
   pipe0 = pt_getint(pid, buf);
@@ -366,23 +366,23 @@ elfldr_prepare_exec(pid_t pid, uint8_t *elf) {
   struct reg r;
 
   if(pt_getregs(pid, &r)) {
-    klog_perror("pt_getregs");
+    LOG_PERROR("pt_getregs");
     return -1;
   }
 
   if(!(entry=elfldr_load(pid, elf))) {
-    klog_puts("elfldr_load failed");
+    LOG_PUTS("elfldr_load failed");
     return -1;
   }
 
   if(!(args=elfldr_payload_args(pid))) {
-    klog_puts("elfldr_payload_args failed");
+    LOG_PUTS("elfldr_payload_args failed");
     return -1;
   }
 
   // backup next instruction
   if(mdbg_copyout(pid, r.r_rip, &org_inst, sizeof(org_inst))) {
-    perror("mdbg_copyout");
+    LOG_PERROR("mdbg_copyout");
     kill(pid, SIGKILL);
     pt_detach(pid);
     return -1;
@@ -390,7 +390,7 @@ elfldr_prepare_exec(pid_t pid, uint8_t *elf) {
 
   // replace next instruction with a call to rax
   if(mdbg_copyin(pid, &call_rax, r.r_rip, sizeof(call_rax))) {
-    perror("mdbg_copyin");
+    LOG_PERROR("mdbg_copyin");
     kill(pid, SIGKILL);
     pt_detach(pid);
     return -1;
@@ -400,7 +400,7 @@ elfldr_prepare_exec(pid_t pid, uint8_t *elf) {
   r.r_rdi = args;
 
   if(pt_setregs(pid, &r)) {
-    klog_perror("pt_setregs");
+    LOG_PERROR("pt_setregs");
     kill(pid, SIGKILL);
     pt_detach(pid);
     return -1;
@@ -408,7 +408,7 @@ elfldr_prepare_exec(pid_t pid, uint8_t *elf) {
 
   // call entry pointed at from rax
   if(pt_step(pid)) {
-    klog_perror("pt_step");
+    LOG_PERROR("pt_step");
     kill(pid, SIGKILL);
     pt_detach(pid);
     return -1;
@@ -416,7 +416,7 @@ elfldr_prepare_exec(pid_t pid, uint8_t *elf) {
 
   // restore next instruction
   if(mdbg_copyin(pid, &org_inst, r.r_rip, sizeof(org_inst))) {
-    perror("mdbg_copyin");
+    LOG_PERROR("mdbg_copyin");
     kill(pid, SIGKILL);
     pt_detach(pid);
     return -1;
@@ -435,7 +435,7 @@ elfldr_set_procname(pid_t pid, const char* name) {
 
   if((buf=pt_mmap(pid, 0, PAGE_SIZE, PROT_READ | PROT_WRITE,
 		  MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == -1) {
-    pt_perror(pid, "pt_mmap");
+    LOG_PT_PERROR(pid, "pt_mmap");
     return -1;
   }
 
@@ -491,23 +491,23 @@ elfldr_exec(pid_t pid, int stdio, uint8_t* elf) {
   // backup privileges
   jaildir = kernel_get_proc_jaildir(pid);
   if(!(rootdir=kernel_get_proc_rootdir(pid))) {
-    klog_puts("kernel_get_proc_rootdir failed");
+    LOG_PUTS("kernel_get_proc_rootdir failed");
     pt_detach(pid);
     return -1;
   }
   if(kernel_get_ucred_caps(pid, caps)) {
-    klog_puts("kernel_get_ucred_caps failed");
+    LOG_PUTS("kernel_get_ucred_caps failed");
     pt_detach(pid);
     return -1;
   }
   if(!(authid=kernel_get_ucred_authid(pid))) {
-    klog_puts("kernel_get_ucred_authid failed");
+    LOG_PUTS("kernel_get_ucred_authid failed");
     pt_detach(pid);
     return -1;
   }
 
   if(elfldr_raise_privileges(pid)) {
-    klog_puts("Unable to raise privileges");
+    LOG_PUTS("Unable to raise privileges");
     pt_detach(pid);
     return -1;
   }
@@ -532,25 +532,25 @@ elfldr_exec(pid_t pid, int stdio, uint8_t* elf) {
 
   // restore privileges
   if(kernel_set_proc_jaildir(pid, jaildir)) {
-    klog_puts("kernel_set_proc_jaildir failed");
+    LOG_PUTS("kernel_set_proc_jaildir failed");
     error = -1;
   }
   if(kernel_set_proc_rootdir(pid, rootdir)) {
-    klog_puts("kernel_set_proc_rootdir failed");
+    LOG_PUTS("kernel_set_proc_rootdir failed");
     error = -1;
   }
 
   if(kernel_set_ucred_caps(pid, caps)) {
-    klog_puts("kernel_set_ucred_caps failed");
+    LOG_PUTS("kernel_set_ucred_caps failed");
     error = -1;
   }
   if(kernel_set_ucred_authid(pid, authid)) {
-    klog_puts("kernel_set_ucred_authid failed");
+    LOG_PUTS("kernel_set_ucred_authid failed");
     error = -1;
   }
 
   if(pt_detach(pid)) {
-    klog_perror("pt_detach");
+    LOG_PERROR("pt_detach");
     error = -1;
   }
 
@@ -569,24 +569,24 @@ elfldr_set_heap_size(pid_t pid, ssize_t size) {
   intptr_t Need_sceLibc;
 
   if(!(sceProcParam=pt_sceKernelGetProcParam(pid))) {
-    pt_perror(pid, "pt_sceKernelGetProcParam");
+    LOG_PT_PERROR(pid, "pt_sceKernelGetProcParam");
     return -1;
   }
 
   if(mdbg_copyout(pid, sceProcParam+56, &sceLibcParam,
 		  sizeof(sceLibcParam))) {
-    perror("mdbg_copyout");
+    LOG_PERROR("mdbg_copyout");
     return -1;
   }
 
   if(mdbg_copyout(pid, sceLibcParam+16, &sceLibcHeapSize,
 		  sizeof(sceLibcHeapSize))) {
-    perror("mdbg_copyout");
+    LOG_PERROR("mdbg_copyout");
     return -1;
   }
 
   if(mdbg_setlong(pid, sceLibcHeapSize, size)) {
-    perror("mdbg_setlong");
+    LOG_PERROR("mdbg_setlong");
     return -1;
   }
 
@@ -596,7 +596,7 @@ elfldr_set_heap_size(pid_t pid, ssize_t size) {
 
   if(mdbg_copyout(pid, sceLibcParam+72, &Need_sceLibc,
 		  sizeof(Need_sceLibc))) {
-    perror("mdbg_copyout");
+    LOG_PERROR("mdbg_copyout");
     return -1;
   }
 
@@ -616,7 +616,7 @@ elfldr_spawn(const char* progname, int stdio, uint8_t* elf) {
   pid_t pid = -1;
 
   if(sceKernelSpawn(&pid, 1, SceSpZeroConf, 0, argv)) {
-    perror("sceKernelSpawn");
+    LOG_PERROR("sceKernelSpawn");
     return -1;
   }
 
@@ -624,7 +624,7 @@ elfldr_spawn(const char* progname, int stdio, uint8_t* elf) {
   // at the libkernel entry. Let the kernel assign process parameters accessed
   // via sceKernelGetProcParam()
   if(pt_syscall(pid, 599)) {
-    klog_puts("sys_dynlib_process_needed_and_relocate failed");
+    LOG_PUTS("sys_dynlib_process_needed_and_relocate failed");
     kill(pid, SIGKILL);
     pt_detach(pid);
     return -1;
@@ -635,20 +635,20 @@ elfldr_spawn(const char* progname, int stdio, uint8_t* elf) {
 
   //Insert a breakpoint at the eboot entry.
   if(!(brkpoint=kernel_dynlib_entry_addr(pid, 0))) {
-    klog_puts("kernel_dynlib_entry_addr failed");
+    LOG_PUTS("kernel_dynlib_entry_addr failed");
     kill(pid, SIGKILL);
     pt_detach(pid);
     return -1;
   }
   brkpoint += 58;// offset to invocation of main()
   if(mdbg_copyout(pid, brkpoint, &orginstr, sizeof(orginstr))) {
-    klog_perror("mdbg_copyout");
+    LOG_PERROR("mdbg_copyout");
     kill(pid, SIGKILL);
     pt_detach(pid);
     return -1;
   }
   if(mdbg_copyin(pid, &int3instr, brkpoint, sizeof(int3instr))) {
-    klog_perror("mdbg_copyin");
+    LOG_PERROR("mdbg_copyin");
     kill(pid, SIGKILL);
     pt_detach(pid);
     return -1;
@@ -656,19 +656,19 @@ elfldr_spawn(const char* progname, int stdio, uint8_t* elf) {
 
   // Continue execution until we hit the breakpoint, then remove it.
   if(pt_continue(pid, SIGCONT)) {
-    klog_perror("pt_continue");
+    LOG_PERROR("pt_continue");
     kill(pid, SIGKILL);
     pt_detach(pid);
     return -1;
   }
   if(waitpid(pid, 0, 0) == -1) {
-    klog_perror("waitpid");
+    LOG_PERROR("waitpid");
     kill(pid, SIGKILL);
     pt_detach(pid);
     return -1;
   }
   if(mdbg_copyin(pid, &orginstr, brkpoint, sizeof(orginstr))) {
-    klog_perror("mdbg_copyin");
+    LOG_PERROR("mdbg_copyin");
     kill(pid, SIGKILL);
     pt_detach(pid);
     return -1;
@@ -697,17 +697,17 @@ elfldr_find_pid(const char* name) {
   uint8_t *buf;
 
   if(sysctl(mib, 4, 0, &buf_size, 0, 0)) {
-    klog_perror("sysctl");
+    LOG_PERROR("sysctl");
     return -1;
   }
 
   if(!(buf=malloc(buf_size))) {
-    klog_perror("malloc");
+    LOG_PERROR("malloc");
     return -1;
   }
 
   if(sysctl(mib, 4, buf, &buf_size, 0, 0)) {
-    klog_perror("sysctl");
+    LOG_PERROR("sysctl");
     free(buf);
     return -1;
   }

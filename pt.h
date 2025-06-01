@@ -51,6 +51,6 @@ int pt_close(pid_t pid, int fd);
 int pt_dup2(pid_t pid, int oldfd, int newfd);
 int pt_rdup(pid_t pid, pid_t other_pid, int fd);
 int pt_pipe(pid_t pid, intptr_t pipefd);
-void pt_perror(pid_t pid, const char *s);
+int pt_errno(pid_t pid);
 
 intptr_t pt_sceKernelGetProcParam(pid_t pid);

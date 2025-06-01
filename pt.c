@@ -307,17 +307,11 @@ pt_pipe(pid_t pid, intptr_t pipefd) {
 }
 
 
-void
-pt_perror(pid_t pid, const char *s) {
+int
+pt_errno(pid_t pid) {
   intptr_t faddr = pt_resolve(pid, "9BcDykPmo1I");
   intptr_t addr = pt_call(pid, faddr);
-  int err = pt_getint(pid, addr);
-  char buf[255];
-
-  strcpy(buf, s);
-  strcat(buf, ": ");
-  strcat(buf, strerror(err));
-  klog_puts(buf);
+  return pt_getint(pid, addr);
 }
 
 

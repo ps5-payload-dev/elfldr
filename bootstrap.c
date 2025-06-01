@@ -18,9 +18,9 @@ along with this program; see the file COPYING. If not, see
 #include <stdio.h>
 
 #include <ps5/kernel.h>
-#include <ps5/klog.h>
 
 #include "elfldr.h"
+#include "log.h"
 #include "notify.h"
 #include "pt.h"
 
@@ -40,30 +40,30 @@ main() {
   int ret;
 
   notify("Spawning elfldr.elf...");
-  klog_puts("Spawning elfldr.elf...");
+  LOG_PUTS("Spawning elfldr.elf...");
 
   if(elfldr_sanity_check(socksrv_elf, socksrv_elf_len)) {
-    klog_puts("socksrv.elf is corrupted");
+    LOG_PUTS("socksrv.elf is corrupted");
     return -1;
   }
 
   // backup my privileges
   if(!(vnode=kernel_get_proc_rootdir(mypid))) {
-    klog_puts("kernel_get_proc_rootdir failed");
+    LOG_PUTS("kernel_get_proc_rootdir failed");
     return -1;
   }
   if(kernel_get_ucred_caps(mypid, caps)) {
-    klog_puts("kernel_get_ucred_caps failed");
+    LOG_PUTS("kernel_get_ucred_caps failed");
     return -1;
   }
   if(!(authid=kernel_get_ucred_authid(mypid))) {
-    klog_puts("kernel_get_ucred_authid failed");
+    LOG_PUTS("kernel_get_ucred_authid failed");
     return -1;
   }
 
   // launch socksrv.elf in a new processes
   if(elfldr_raise_privileges(mypid)) {
-    klog_puts("Unable to raise privileges");
+    LOG_PUTS("Unable to raise privileges");
     ret = -1;
   } else {
     signal(SIGCHLD, SIG_IGN);
@@ -72,19 +72,19 @@ main() {
 
   // restore my privileges
   if(kernel_set_proc_jaildir(mypid, vnode)) {
-    klog_puts("kernel_set_proc_jaildir failed");
+    LOG_PUTS("kernel_set_proc_jaildir failed");
     ret = -1;
   }
   if(kernel_set_proc_rootdir(mypid, vnode)) {
-    klog_puts("kernel_set_proc_rootdir failed");
+    LOG_PUTS("kernel_set_proc_rootdir failed");
     ret = -1;
   }
   if(kernel_set_ucred_caps(mypid, caps)) {
-    klog_puts("kernel_set_ucred_caps failed");
+    LOG_PUTS("kernel_set_ucred_caps failed");
     ret = -1;
   }
   if(kernel_set_ucred_authid(mypid, authid)) {
-    klog_puts("kernel_set_ucred_authid failed");
+    LOG_PUTS("kernel_set_ucred_authid failed");
     ret = -1;
   }
 
