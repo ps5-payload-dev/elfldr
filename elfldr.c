@@ -374,8 +374,7 @@ elfldr_prepare_exec(pid_t pid, uint8_t *elf) {
 
   if(pt_setregs(pid, &r)) {
     LOG_PERROR("pt_setregs");
-    kill(pid, SIGKILL);
-    pt_detach(pid);
+    pt_detach(pid, SIGKILL);
     return -1;
   }
 
@@ -449,23 +448,23 @@ elfldr_exec(pid_t pid, int stdio, uint8_t* elf) {
   jaildir = kernel_get_proc_jaildir(pid);
   if(!(rootdir=kernel_get_proc_rootdir(pid))) {
     LOG_PUTS("kernel_get_proc_rootdir failed");
-    pt_detach(pid);
+    pt_detach(pid, 0);
     return -1;
   }
   if(kernel_get_ucred_caps(pid, caps)) {
     LOG_PUTS("kernel_get_ucred_caps failed");
-    pt_detach(pid);
+    pt_detach(pid, 0);
     return -1;
   }
   if(!(authid=kernel_get_ucred_authid(pid))) {
     LOG_PUTS("kernel_get_ucred_authid failed");
-    pt_detach(pid);
+    pt_detach(pid, 0);
     return -1;
   }
 
   if(elfldr_raise_privileges(pid)) {
     LOG_PUTS("Unable to raise privileges");
-    pt_detach(pid);
+    pt_detach(pid, 0);
     return -1;
   }
 
@@ -506,7 +505,7 @@ elfldr_exec(pid_t pid, int stdio, uint8_t* elf) {
     error = -1;
   }
 
-  if(pt_detach(pid)) {
+  if(pt_detach(pid, 0)) {
     LOG_PERROR("pt_detach");
     error = -1;
   }
@@ -655,8 +654,7 @@ elfldr_spawn(const char* progname, int stdio, uint8_t* elf) {
   // via sceKernelGetProcParam()
   if(pt_syscall(pid, 599)) {
     LOG_PT_PERROR(pid, "sys_dynlib_process_needed_and_relocate");
-    kill(pid, SIGKILL);
-    pt_detach(pid);
+    pt_detach(pid, SIGKILL);
     return -1;
   }
 
@@ -666,49 +664,42 @@ elfldr_spawn(const char* progname, int stdio, uint8_t* elf) {
   //Insert a breakpoint at the eboot entry.
   if(!(brkpoint=kernel_dynlib_entry_addr(pid, 0))) {
     LOG_PUTS("kernel_dynlib_entry_addr failed");
-    kill(pid, SIGKILL);
-    pt_detach(pid);
+    pt_detach(pid, SIGKILL);
     return -1;
   }
   brkpoint += 58;// offset to invocation of main()
 
   if(kernel_mprotect(pid, brkpoint, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC)) {
     LOG_PUTS("kernel_mprotect failed");
-    kill(pid, SIGKILL);
-    pt_detach(pid);
+    pt_detach(pid, SIGKILL);
     return -1;
   }
 
   if(pt_copyout(pid, brkpoint, &orginstr, sizeof(orginstr))) {
     LOG_PERROR("pt_copyout");
-    kill(pid, SIGKILL);
-    pt_detach(pid);
+    pt_detach(pid, SIGKILL);
     return -1;
   }
   if(pt_copyin(pid, &int3instr, brkpoint, sizeof(int3instr))) {
     LOG_PERROR("pt_copyin");
-    kill(pid, SIGKILL);
-    pt_detach(pid);
+    pt_detach(pid, SIGKILL);
     return -1;
   }
 
   // Continue execution until we hit the breakpoint, then remove it.
   if(pt_continue(pid, SIGCONT)) {
     LOG_PERROR("pt_continue");
-    kill(pid, SIGKILL);
-    pt_detach(pid);
+    pt_detach(pid, SIGKILL);
     return -1;
   }
   if(waitpid(pid, 0, 0) == -1) {
     LOG_PERROR("waitpid");
-    kill(pid, SIGKILL);
-    pt_detach(pid);
+    pt_detach(pid, SIGKILL);
     return -1;
   }
   if(pt_copyin(pid, &orginstr, brkpoint, sizeof(orginstr))) {
     LOG_PERROR("pt_copyin");
-    kill(pid, SIGKILL);
-    pt_detach(pid);
+    pt_detach(pid, SIGKILL);
     return -1;
   }
 
