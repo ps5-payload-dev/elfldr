@@ -65,4 +65,4 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           prerelease: true
-          files: Payload.zip
+          files: "*.elf"
