@@ -4,15 +4,15 @@ on:
   push:
     paths-ignore:
       - "**/*.md"
-      - '**/*.txt'
+      - "**/*.txt"
   pull_request:
     paths-ignore:
       - "**/*.md"
-      - '**/*.txt'
+      - "**/*.txt"
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.ref }}-${{ github.event_name  }}
+  group: ${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
