@@ -757,3 +757,72 @@ elfldr_find_pid(const char* name) {
   return pid;
 }
 
+
+/**
+ * Read an ELF from a given socket.
+ **/
+int
+elfldr_read(int fd, uint8_t** elf, size_t* elf_size) {
+  Elf64_Shdr *shdr;
+  Elf64_Ehdr ehdr;
+  uint8_t* buf;
+  uint8_t* bak;
+  size_t size;
+  off_t shend;
+  size_t rem;
+
+  if(recv(fd, &ehdr, sizeof(ehdr), MSG_WAITALL) != sizeof(ehdr)) {
+    return -1;
+  }
+
+  if(ehdr.e_ident[0] != 0x7f || ehdr.e_ident[1] != 'E' ||
+     ehdr.e_ident[2] != 'L'  || ehdr.e_ident[3] != 'F') {
+    errno = ENOEXEC;
+    return -1;
+  }
+
+  size = ehdr.e_shoff + ehdr.e_shnum * sizeof(Elf64_Ehdr);
+  if(!(buf=malloc(size))) {
+    return -1;
+  }
+
+  memcpy(buf, &ehdr, sizeof(ehdr));
+  rem = size - sizeof(ehdr);
+  if(recv(fd, buf + sizeof(ehdr), rem, MSG_WAITALL) != rem) {
+    free(buf);
+    return -1;
+  }
+
+  shend = 0;
+  shdr = (Elf64_Shdr*)(buf + ehdr.e_shoff);
+  for(int i=0; i<ehdr.e_shnum; i++) {
+    size_t end = shdr[i].sh_offset + shdr[i].sh_size;
+    if(end > shend) {
+      shend = end;
+    }
+  }
+
+  // sections appear before section headers
+  if(shend <= size) {
+    *elf = buf;
+    *elf_size = size;
+    return 0;
+  }
+
+  bak = buf;
+  if(!(buf=realloc(buf, shend))) {
+    free(bak);
+    return -1;
+  }
+
+  rem = shend - size;
+  if(recv(fd, buf + size, rem, MSG_WAITALL) != rem) {
+    free(buf);
+    return -1;
+  }
+
+  *elf = buf;
+  *elf_size = shend;
+
+  return 0;
+}
