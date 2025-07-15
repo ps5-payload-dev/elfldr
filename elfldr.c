@@ -796,6 +796,9 @@ elfldr_read(int fd, uint8_t** elf, size_t* elf_size) {
   shend = 0;
   shdr = (Elf64_Shdr*)(buf + ehdr.e_shoff);
   for(int i=0; i<ehdr.e_shnum; i++) {
+    if(shdr[i].sh_type == SHT_NOBITS) {
+      continue;
+    }
     size_t end = shdr[i].sh_offset + shdr[i].sh_size;
     if(end > shend) {
       shend = end;
