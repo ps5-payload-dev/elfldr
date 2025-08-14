@@ -42,13 +42,12 @@ jobs:
     - name: Build Payload
       run: |
         make clean all
-        zip -r Payload.zip elfldr.elf
 
     - name: Upload Payload
       uses: actions/upload-artifact@v4
       with:
         name: Payload
-        path: Payload.zip
+        path: elfldr-ps5.elf
         if-no-files-found: error
 
   release:
@@ -70,4 +69,4 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           prerelease: true
-          files: Payload.zip
+          files: elfldr-ps5.elf

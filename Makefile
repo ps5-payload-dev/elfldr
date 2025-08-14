@@ -25,7 +25,7 @@ endif
 
 CFLAGS := -Wall -Werror -O1
 
-all: elfldr.elf
+all: elfldr-ps5.elf
 
 socksrv_elf.c: socksrv.elf
 bootstrap_elf.c: bootstrap.elf
@@ -47,14 +47,14 @@ socksrv.elf: socksrv.o elfldr.o pt.o notify.o
 socksrv_elf.c: socksrv.elf
 	xxd -i $^ > $@
 
-elfldr.elf: main.o elfldr.o pt.o notify.o
+elfldr-ps5.elf: main.o elfldr.o pt.o notify.o
 	$(CC) -o $@ $^
 	$(STRIP) $@
 
 clean:
 	rm -f bootstrap_elf.c socksrv_elf.c *.o *.elf
 
-test: elfldr.elf
+test: elfldr-ps5.elf
 	$(PS5_DEPLOY) -h $(PS5_HOST) -p $(PS5_PORT) $^
 
 .INTERMEDIATE: socksrv_elf.c socksrv.elf bootstrap_elf.c bootstrap.elf
