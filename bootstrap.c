@@ -26,6 +26,7 @@ along with this program; see the file COPYING. If not, see
 
 
 #include "socksrv_elf.c"
+#include "autoload_elf.c"
 
 
 /**
@@ -44,6 +45,11 @@ main() {
 
   if(elfldr_sanity_check(socksrv_elf, socksrv_elf_len)) {
     LOG_PUTS("socksrv.elf is corrupted");
+    return -1;
+  }
+
+  if(elfldr_sanity_check(autoload_elf, autoload_elf_len)) {
+    LOG_PUTS("autoload.elf is corrupted");
     return -1;
   }
 
@@ -68,6 +74,7 @@ main() {
   } else {
     signal(SIGCHLD, SIG_IGN);
     ret = elfldr_spawn("elfldr.elf", -1, socksrv_elf);
+    ret = elfldr_spawn("autoload.elf", -1, autoload_elf);
   }
 
   // restore my privileges

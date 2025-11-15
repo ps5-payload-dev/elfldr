@@ -757,9 +757,20 @@ elfldr_find_pid(const char* name) {
   return pid;
 }
 
+/**
+ * Read data from a given socket or file.
+ **/
+static ssize_t
+read_data(int fd, void* buf, size_t count) {
+  if(fd & 0x80000000) {
+    return read(fd & 0x7fffffff, buf, count);
+  } else {
+    return recv(fd, buf, count, MSG_WAITALL);
+  }
+}
 
 /**
- * Read an ELF from a given socket.
+ * Read an ELF from a given socket or file.
  **/
 int
 elfldr_read(int fd, uint8_t** elf, size_t* elf_size) {
@@ -771,7 +782,7 @@ elfldr_read(int fd, uint8_t** elf, size_t* elf_size) {
   off_t shend;
   size_t rem;
 
-  if(recv(fd, &ehdr, sizeof(ehdr), MSG_WAITALL) != sizeof(ehdr)) {
+  if(read_data(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)) {
     return -1;
   }
 
@@ -788,7 +799,7 @@ elfldr_read(int fd, uint8_t** elf, size_t* elf_size) {
 
   memcpy(buf, &ehdr, sizeof(ehdr));
   rem = size - sizeof(ehdr);
-  if(recv(fd, buf + sizeof(ehdr), rem, MSG_WAITALL) != rem) {
+  if(read_data(fd, buf + sizeof(ehdr), rem) != rem) {
     free(buf);
     return -1;
   }
@@ -819,7 +830,7 @@ elfldr_read(int fd, uint8_t** elf, size_t* elf_size) {
   }
 
   rem = shend - size;
-  if(recv(fd, buf + size, rem, MSG_WAITALL) != rem) {
+  if(read_data(fd, buf + size, rem) != rem) {
     free(buf);
     return -1;
   }
