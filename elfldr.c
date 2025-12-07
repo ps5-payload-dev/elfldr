@@ -233,6 +233,7 @@ elfldr_load(pid_t pid, uint8_t *elf) {
                          ROUND_PG(phdr[i].p_memsz),
                          PFLAGS(phdr[i].p_flags))) {
 	LOG_PERROR("kernel_mprotect");
+	error = 1;
       }
     } else {
       if(pt_mprotect(pid, ctx.base_addr + phdr[i].p_vaddr,
@@ -374,7 +375,6 @@ elfldr_prepare_exec(pid_t pid, uint8_t *elf) {
 
   if(pt_setregs(pid, &r)) {
     LOG_PERROR("pt_setregs");
-    pt_detach(pid, SIGKILL);
     return -1;
   }
 
