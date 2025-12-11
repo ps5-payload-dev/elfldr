@@ -40,7 +40,7 @@ bootstrap.elf: bootstrap.o elfldr.o pt.o notify.o
 bootstrap_elf.c: bootstrap.elf
 	xxd -i $^ > $@
 
-socksrv.elf: socksrv.o elfldr.o pt.o notify.o
+socksrv.elf: socksrv.o selfldr.o elfldr.o pt.o notify.o
 	$(CC) -o $@ $^
 	$(STRIP) $@
 

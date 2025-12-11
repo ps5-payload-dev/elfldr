@@ -30,6 +30,15 @@ along with this program; see the file COPYING. If not, see
 #include "elfldr.h"
 #include "log.h"
 #include "notify.h"
+#include "selfldr.h"
+
+
+/**
+ * Magic number that ELF and SELF files starts with (little endian).
+ **/
+#define PAYLOAD_MAGIC_ELF      0x464C457F
+#define PAYLOAD_MAGIC_PS4_SELF 0x1D3D154F
+#define PAYLOAD_MAGIC_PS5_SELF 0xEEF51454
 
 
 /**
@@ -37,22 +46,45 @@ along with this program; see the file COPYING. If not, see
  **/
 static void
 on_connection(int fd) {
+  uint8_t* buf = 0;
+  size_t len = 0;
   int optval = 1;
-  uint8_t* elf;
-  size_t len;
+  int magic = 0;
 
   if(setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &optval, sizeof(optval)) < 0) {
     return;
   }
 
-  if(elfldr_read(fd, &elf, &len)) {
-    LOG_PERROR("elfldr_read");
-    write(fd, "[elfldr.elf] Error reading ELF file\n\r\0", 38);
-  } else {
-    if(elfldr_spawn("payload.elf", fd, elf) < 0) {
-      write(fd, "[elfldr.elf] Error running ELF file\n\r\0", 38);
+  if(recv(fd, &magic, sizeof(magic), MSG_PEEK | MSG_WAITALL) != sizeof(magic)) {
+    LOG_PERROR("recv");
+    write(fd, "[elfldr.elf] Unknown payload format\n\r\0", 38);
+    return;
+  }
+
+  if(magic == PAYLOAD_MAGIC_ELF) {
+    if(elfldr_read(fd, &buf, &len)) {
+      LOG_PERROR("elfldr_read");
+      write(fd, "[elfldr.elf] Error reading ELF file\n\r\0", 38);
+    } else {
+      if(elfldr_spawn("payload.elf", fd, buf) < 0) {
+	write(fd, "[elfldr.elf] Error running ELF file\n\r\0", 38);
+      }
     }
-    free(elf);
+  } else if(magic == PAYLOAD_MAGIC_PS4_SELF || magic == PAYLOAD_MAGIC_PS5_SELF) {
+    if(selfldr_read(fd, &buf, &len)) {
+      LOG_PERROR("selfldr_read");
+      write(fd, "[elfldr.elf] Error reading SELF file\n\r\0", 39);
+    } else {
+      if(selfldr_spawn(fd, buf, len) < 0) {
+	write(fd, "[elfldr.elf] Error running SELF file\n\r\0", 39);
+      }
+    }
+  } else {
+    write(fd, "[elfldr.elf] Unknown payload format\n\r\0", 38);
+  }
+
+  if(buf) {
+    free(buf);
   }
 }
 
