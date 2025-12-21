@@ -14,7 +14,8 @@ a rudimentary ELF loader on port 9020, e.g., [BD-J ps5-payload-loader][bdj],
 or the [webkit approached from Specter][webkit]. Then, run the following:
 ```console
 john@localhost:~$ export PS5_HOST=ps5
-john@localhost:~$ wget -q -O - https://github.com/ps5-payload-dev/elfldr/releases/latest/download/Payload.zip | gunzip -c -d | nc -q0 $PS5_HOST 9020
+john@localhost:~$ export PS5_PORT=9020
+john@localhost:~$ wget -q -O - https://github.com/ps5-payload-dev/elfldr/releases/latest/download/elfldr-ps5.elf | nc -q0 $PS5_HOST $PS5_PORT
 ```
 
 ## Building
