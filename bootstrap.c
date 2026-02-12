@@ -67,7 +67,7 @@ main() {
     ret = -1;
   } else {
     signal(SIGCHLD, SIG_IGN);
-    ret = elfldr_spawn("elfldr.elf", -1, socksrv_elf);
+    ret = elfldr_spawn("elfldr.elf", -1, socksrv_elf, socksrv_elf_len);
   }
 
   // restore my privileges

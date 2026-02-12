@@ -602,8 +602,7 @@ elfldr_rfork_entry(void* progname) {
  * Execute an ELF inside a new process.
  **/
 pid_t
-elfldr_spawn(const char* progname, int stdio, uint8_t* elf) {
-
+elfldr_spawn(const char* progname, int stdio, uint8_t* elf, size_t payload_size) {
   uint8_t int3instr = 0xcc;
   struct kevent evt;
   intptr_t brkpoint;

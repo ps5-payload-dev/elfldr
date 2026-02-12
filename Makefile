@@ -40,8 +40,8 @@ bootstrap.elf: bootstrap.o elfldr.o pt.o notify.o
 bootstrap_elf.c: bootstrap.elf
 	xxd -i $^ > $@
 
-socksrv.elf: socksrv.o selfldr.o elfldr.o pt.o notify.o
-	$(CC) -o $@ $^
+socksrv.elf: socksrv.o selfldr.o elfldr.o pt.o notify.o uri.o
+	$(CC) -o $@ $^ -lSceSsl -lSceHttp2
 	$(STRIP) $@
 
 socksrv_elf.c: socksrv.elf
