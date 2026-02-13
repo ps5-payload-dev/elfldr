@@ -18,6 +18,20 @@ john@localhost:~$ export PS5_PORT=9020
 john@localhost:~$ wget -q -O - https://github.com/ps5-payload-dev/elfldr/releases/latest/download/elfldr-ps5.elf | nc -q0 $PS5_HOST $PS5_PORT
 ```
 
+## Usage examples
+```console
+john@localhost:~$ export PS5_HOST=ps5
+john@localhost:~$ export PS5_PORT=9021
+john@localhost:~$ export PS5_PAYLOAD=payload.elf # from local storage
+john@localhost:~$ nc -q0 $PS5_HOST $PS5_PORT < $PS5_PAYLOAD
+john@localhost:~$
+john@localhost:~$ export PS5_PAYLOAD=file:/data/payload.elf # from target storage
+john@localhost:~$ echo "$PS5_PAYLOAD" | nc -q0 $PS5_HOST $PS5_PORT
+john@localhost:~$
+john@localhost:~$ export PS5_PAYLOAD=https://github.com/ps5-payload-dev/ftpsrv/releases/latest/download/ftpsrv-ps5.elf
+john@localhost:~$ echo "$PS5_PAYLOAD" | nc -q0 $PS5_HOST $PS5_PORT
+```
+
 ## Building
 Assuming you have the [ps5-payload-sdk][sdk] installed on a Debian-flavored
 operating system, ps5-payload-elfldr can be compiled using the following
