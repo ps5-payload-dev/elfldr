@@ -567,9 +567,7 @@ sys_budget_set(long budget) {
 
 
 static int
-elfldr_rfork_entry(void* progname) {
-  char* const argv[] = {(char*)progname, 0};
-
+elfldr_rfork_entry(void* argv) {
   if(sys_budget_set(0)) {
     klog_perror("sys_budget_set");
     return -1;
@@ -602,7 +600,7 @@ elfldr_rfork_entry(void* progname) {
  * Execute an ELF inside a new process.
  **/
 pid_t
-elfldr_spawn(const char* progname, int stdio, uint8_t* elf, size_t payload_size) {
+elfldr_spawn(int stdio, char* const argv[], uint8_t* elf, size_t payload_size) {
   uint8_t int3instr = 0xcc;
   struct kevent evt;
   intptr_t brkpoint;
@@ -623,7 +621,7 @@ elfldr_spawn(const char* progname, int stdio, uint8_t* elf, size_t payload_size)
   }
 
   if((pid=rfork_thread(RFPROC | RFCFDG | RFMEM, stack+PAGE_SIZE-8,
-		       elfldr_rfork_entry, (void*)progname)) < 0) {
+		       elfldr_rfork_entry, (void*)argv)) < 0) {
     LOG_PERROR("rfork_thread");
     free(stack);
     close(kq);
@@ -703,7 +701,7 @@ elfldr_spawn(const char* progname, int stdio, uint8_t* elf, size_t payload_size)
   }
 
   // Execute the ELF
-  elfldr_set_procname(pid, progname);
+  elfldr_set_procname(pid, argv[0]);
   if(elfldr_exec(pid, stdio, elf)) {
     kill(pid, SIGKILL);
     return -1;

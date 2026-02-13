@@ -20,9 +20,21 @@ along with this program; see the file COPYING. If not, see
 
 
 /**
- * Read a payload from the given URI. Supported protocols are:
+ * Read the content from the given URI. Supported protocols are:
  * - file://
  * - http://
  * - https://
  **/
-int uri_read(const char* uri, uint8_t** payload, size_t* payload_size);
+int uri_get_content(const char* uri, uint8_t** content, size_t* content_size);
+
+
+/**
+ * Get the value of a named parameter associated with the given URI.
+ **/
+char* uri_get_param(const char* uri, const char* name);
+
+
+/**
+ * Get the filename associated with the given URI.
+ **/
+char* uri_get_filename(const char* uri);

@@ -29,6 +29,12 @@ along with this program; see the file COPYING. If not, see
 
 
 /**
+ *
+ **/
+static char* const argv[] = {"elfldr.elf", 0};
+
+
+/**
  * We are running inside SceRedisServer, spawn socksrv.elf.
  **/
 int
@@ -67,7 +73,7 @@ main() {
     ret = -1;
   } else {
     signal(SIGCHLD, SIG_IGN);
-    ret = elfldr_spawn("elfldr.elf", -1, socksrv_elf, socksrv_elf_len);
+    ret = elfldr_spawn(-1, argv, socksrv_elf, socksrv_elf_len);
   }
 
   // restore my privileges

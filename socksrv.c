@@ -46,42 +46,26 @@ along with this program; see the file COPYING. If not, see
 
 
 /**
- * Spawn an ELF or a SELF payload.
+ * Decode an escaped argument.
  **/
-static int
-payload_spawn(int fd, const char* progname, uint8_t* payload, size_t payload_size) {
-  int magic = *((int*)payload);
+static char*
+args_decode(const char* s) {
+  size_t length = strlen(s);
+  char *arg = malloc(length+1);
+  size_t off = 0;
+  int escape = 0;
 
-  if(magic == PAYLOAD_MAGIC_ELF) {
-    return elfldr_spawn(progname, fd, payload, payload_size);
-  }
-
-  if(magic == PAYLOAD_MAGIC_PS4_SELF || magic == PAYLOAD_MAGIC_PS5_SELF) {
-    return selfldr_spawn(fd, payload, payload_size);
-  }
-
-  return -1;
-}
-
-
-/**
- * Extract the progname from an URI.
- **/
-static const char*
-payload_progname(const char* uri) {
-  const char* progname = "payload.elf";
-  size_t len = strlen(uri);
-
-  for(int i=0; i<len; i++) {
-    if(uri[i] == '/' && uri[i+1]) {
-      progname = uri+i+1;
-    }
-    else if(uri[i] == '?') {
-      break;
+  for(size_t i=0; i<length; i++) {
+    if(s[i] == '\\' && !escape) {
+      escape = 1;
+    } else {
+      arg[off++] = s[i];
+      escape = 0;
     }
   }
 
-  return progname;
+  arg[off] = 0;
+  return arg;
 }
 
 
@@ -89,17 +73,101 @@ payload_progname(const char* uri) {
  *
  **/
 static int
-read_uri(int fd, char* uri, size_t size) {
-  int c;
+args_split(const char* args, char** argv, size_t size) {
+  char* buf = strdup(args);
+  size_t len = strlen(buf);
+  int escape = 0;
+  int argc = 0;
+
+  memset(argv, 0, size*sizeof(char*));
+  for(int i=0; i<len && argc<size; i++) {
+    if(escape) {
+      escape = 0;
+      continue;
+    }
+
+    if(buf[i] == '\\') {
+      escape = 1;
+      continue;
+    }
+
+    if(buf[i] == ' ') {
+      buf[i] = 0;
+      continue;
+    }
+
+    if(buf[i] && !i) {
+      argv[argc++] = buf+i;
+      continue;
+    }
+
+    if(buf[i] && !buf[i-1]) {
+      argv[argc++] = buf+i;
+    }
+  }
+
+  for(int i=0; i<argc; i++) {
+    argv[i] = args_decode(argv[i]);
+  }
+
+  free(buf);
+
+  return argc;
+}
+
+
+/**
+ * Spawn an ELF or a SELF payload.
+ **/
+static pid_t
+payload_spawn(char* filename, char* args, int fd,
+	      uint8_t* payload, size_t payload_size) {
+  int magic = *((int*)payload);
+  char* argv[255+2] = {0};
+  pid_t pid = -1;
+
+  argv[0] = filename;
+  args_split(args, argv+1, 255);
+
+  if(magic == PAYLOAD_MAGIC_ELF) {
+    pid = elfldr_spawn(fd, argv, payload, payload_size);
+
+  } else if(magic == PAYLOAD_MAGIC_PS4_SELF || magic == PAYLOAD_MAGIC_PS5_SELF) {
+    pid = selfldr_spawn(fd, argv, payload, payload_size);
+  }
+
+  for(int i=1; argv[i]; i++) {
+    free(argv[i]);
+  }
+
+  return pid;
+}
+
+
+/**
+ *
+ **/
+static int
+payload_readuri(int fd, char* uri, size_t size) {
+  char c;
+  int n;
 
   for(int i=0; i<size; i++) {
-    if(read(fd, &c, 1) != 1) {
+    if((n=read(fd, &c, 1)) < 0) {
       return -1;
+    }
+    if(n == 0) {
+      uri[i] = 0;
+      return 0;
+    }
+    if(c == '\r') {
+      continue;
     }
     if(c == '\n') {
       uri[i] = 0;
       return 0;
     }
+
     uri[i] = c;
   }
 
@@ -112,11 +180,12 @@ read_uri(int fd, char* uri, size_t size) {
  **/
 static void
 on_connection(int fd) {
+  char* filename = "payload.elf";
   char uri[PATH_MAX+1] = {0};
-  const char* progname;
   uint8_t* buf = 0;
   size_t len = 0;
   int optval = 1;
+  char* args = "";
   int magic = 0;
 
   if(setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &optval, sizeof(optval)) < 0) {
@@ -131,7 +200,7 @@ on_connection(int fd) {
   }
 
   if(magic == PAYLOAD_MAGIC_FILE || magic == PAYLOAD_MAGIC_HTTP) {
-    if(read_uri(fd, uri, PATH_MAX) < 0 || uri_read(uri, &buf, &len)) {
+    if(payload_readuri(fd, uri, PATH_MAX) || uri_get_content(uri, &buf, &len)) {
       LOG_PERROR("read_uri");
       write(fd, "[elfldr.elf] Error reading URI payload\n\r\0", 41);
     }
@@ -152,10 +221,17 @@ on_connection(int fd) {
   }
 
   if(buf) {
-    progname = payload_progname(uri);
-    if(payload_spawn(fd, progname, buf, len) < 0) {
+    if(!(filename=uri_get_filename(uri))) {
+      filename = strdup("payload.elf");
+    }
+    if(!(args=uri_get_param(uri, "args"))) {
+      args = strdup("");
+    }
+    if(payload_spawn(filename, args, fd, buf, len) < 0) {
       write(fd, "[elfldr.elf] Error spawning payload\n\r\0", 38);
     }
+    free(filename);
+    free(args);
     free(buf);
   }
 }

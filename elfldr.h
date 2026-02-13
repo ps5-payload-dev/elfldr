@@ -28,7 +28,7 @@ pid_t elfldr_find_pid(const char* name);
 /**
  * Spawn a new process that executes the given ELF file.
  **/
-pid_t elfldr_spawn(const char* progname, int stdio, uint8_t *elf, size_t elf_size);
+pid_t elfldr_spawn(int stdio, char* const argv[], uint8_t *elf, size_t elf_size);
 
 
 /**

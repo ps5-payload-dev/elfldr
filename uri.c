@@ -209,53 +209,186 @@ url_read(const char* url, uint8_t** payload, size_t* payload_size) {
  * Read a payload from given path.
  **/
 static int
-path_read(const char* path, uint8_t** payload, size_t* payload_size) {
+path_read(const char* path, uint8_t** content, size_t* content_size) {
   uint8_t* buf;
-  ssize_t len;
-  FILE* file;
+  ssize_t size;
+  FILE* f;
 
-  if(!(file=fopen(path, "rb"))) {
+  if(!(f=fopen(path, "rb"))) {
     return -1;
   }
-  if(fseek(file, 0, SEEK_END)) {
+  if(fseek(f, 0, SEEK_END)) {
     return -1;
   }
-  if((len=ftell(file)) < 0) {
+  if((size=ftell(f)) < 0) {
     return -1;
   }
-  if(fseek(file, 0, SEEK_SET)) {
+  if(fseek(f, 0, SEEK_SET)) {
     return -1;
   }
-  if(!(buf=malloc(len))) {
+  if(!(buf=malloc(size))) {
     return -1;
   }
-  if(fread(buf, 1, len, file) != len) {
+  if(fread(buf, 1, size, f) != size) {
     free(buf);
     return -1;
   }
-  if(fclose(file)) {
+  if(fclose(f)) {
     free(buf);
     return -1;
   }
 
-  *payload = buf;
-  *payload_size = len;
+  *content = buf;
+  *content_size = size;
 
   return 0;
 }
 
 
-int
-uri_read(const char* uri, uint8_t** payload, size_t* payload_size) {
-  if(!strncmp(uri, "file:/", 6)) {
-    return path_read(uri+6, payload, payload_size);
+static int
+hexval(char c) {
+  if(c >= '0' && c <= '9') {
+    return c - '0';
   }
-
-  if(!strncmp(uri, "http:/", 6) ||
-     !strncmp(uri, "https:/", 7)) {
-    return url_read(uri, payload, payload_size);
+  if(c >= 'a' && c <= 'f') {
+    return c - 'a' + 10;
   }
-
+  if(c >= 'A' && c <= 'F') {
+    return c - 'A' + 10;
+  }
   return -1;
 }
 
+
+static char*
+uri_decode(const char* src, size_t len) {
+  char* out;
+  char* dst;
+  int lo;
+  int hi;
+
+  if(!(out=malloc(len+1))) {
+    return 0;
+  }
+
+  dst = out;
+  for(size_t i=0; i<len; i++) {
+    if(src[i] == '%' && i+2 < len) {
+      hi = hexval(src[i+1]);
+      lo = hexval(src[i+2]);
+      if(hi >= 0 && lo >= 0) {
+        *dst++ = (char)((hi << 4) | lo);
+        i += 2;
+      } else {
+        *dst++ = src[i];
+      }
+    }
+    else {
+      *dst++ = src[i];
+    }
+  }
+
+  *dst = 0;
+
+  return out;
+}
+
+
+static char*
+uri_get_path(const char* uri) {
+  size_t len = strlen(uri);
+  const char* begin = 0;
+  const char* end = 0;
+
+  end = uri + len;
+  for(int i=0; i<len; i++) {
+    if(!begin && uri[i] == ':' && uri[i+1] == '/') {
+      begin = uri + i + 1;
+    }
+    else if(uri[i] == '?' || uri[i] == '#' || uri[i] == '\0') {
+      end = uri + i;
+      break;
+    }
+  }
+
+  return uri_decode(begin, end-begin);
+}
+
+
+char*
+uri_get_filename(const char* uri) {
+  size_t len = strlen(uri);
+  const char* begin = 0;
+  const char* end = 0;
+
+  end = uri + len;
+  for(int i=0; i<len; i++) {
+    if(uri[i] == '/') {
+      begin = uri + i + 1;
+    }
+    else if(uri[i] == '?' || uri[i] == '#' || uri[i] == '\0') {
+      end = uri + i;
+      break;
+    }
+  }
+
+  return uri_decode(begin, end-begin);
+}
+
+
+int
+uri_get_content(const char* uri, uint8_t** content, size_t* content_size) {
+  int err = -1;
+  char *path;
+
+  if(!strncmp(uri, "file:/", 6)) {
+    if((path=uri_get_path(uri))) {
+      err = path_read(path, content, content_size);
+      free(path);
+    }
+  } else if(!strncmp(uri, "http:/", 6) || !strncmp(uri, "https:/", 7)) {
+    err = url_read(uri, content, content_size);
+  }
+
+  return err;
+}
+
+
+char*
+uri_get_param(const char* uri, const char* name) {
+  const char* begin;
+  const char* end;
+  const char* p;
+  size_t len;
+
+  if(!(p=strchr(uri, '?'))) {
+    return 0;
+  }
+
+  p++;
+  len = strlen(name);
+
+  while(*p && *p != '#') {
+    if(!strncmp(p, name, len) && p[len] == '=') {
+      begin = p + len + 1;
+
+      if(!(end=strchr(begin, '&'))) {
+	if(!(end=strchr(begin, '#'))) {
+          end = begin + strlen(begin);
+	}
+      }
+
+      return uri_decode(begin, end-begin);
+    }
+
+    while(*p && *p != '&' && *p != '#') {
+      p++;
+    }
+
+    if(*p == '&') {
+      p++;
+    }
+  }
+
+  return 0;
+}

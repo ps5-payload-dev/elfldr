@@ -28,4 +28,5 @@ int selfldr_read(int fd, uint8_t **self, size_t *self_size);
 /**
  * Spawn a new process that executes the given SELF file.
  **/
-pid_t selfldr_spawn(int stdio, uint8_t *self, size_t self_size);
+pid_t selfldr_spawn(int stdio, char* const argv[],
+		    uint8_t *self, size_t self_size);

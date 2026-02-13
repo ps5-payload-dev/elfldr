@@ -58,6 +58,7 @@ typedef struct self_spawn_args {
   int stdio;
   uint8_t *self;
   size_t self_size;
+  char* const* argv;
 } self_spawn_args_t;
 
 
@@ -83,7 +84,6 @@ rdup(pid_t pid, int fd) {
 static int
 selfldr_rfork_entry(void *ctx) {
   self_spawn_args_t *args = (self_spawn_args_t *)ctx;
-  char *const argv[] = {0};
   char *const envp[] = {0};
   pid_t ppid = getppid();
   char path[PATH_MAX];
@@ -118,7 +118,7 @@ selfldr_rfork_entry(void *ctx) {
   }
   close(fd);
 
-  execve(path, argv, envp);
+  execve(path, args->argv, envp);
   perror("execve");
 
   return 0;
@@ -126,8 +126,8 @@ selfldr_rfork_entry(void *ctx) {
 
 
 pid_t
-selfldr_spawn(int stdio, uint8_t *self, size_t self_size) {
-  self_spawn_args_t args = {stdio, self, self_size};
+selfldr_spawn(int stdio, char* const argv[], uint8_t *self, size_t self_size) {
+  self_spawn_args_t args = {stdio, self, self_size, argv};
   struct kevent evt;
   void *stack;
   pid_t pid;
