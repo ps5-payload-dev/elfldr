@@ -39,8 +39,8 @@ along with this program; see the file COPYING. If not, see
  * Magic number that socket input starts with (little endian).
  **/
 #define PAYLOAD_MAGIC_ELF      0x464C457F // ELF payload
-#define PAYLOAD_MAGIC_FILE     0x656C6966 // file:// URI
-#define PAYLOAD_MAGIC_HTTP     0x70747468 // http:// or https:// URI
+#define PAYLOAD_MAGIC_URI_FILE 0x656C6966 // file:// URI
+#define PAYLOAD_MAGIC_URI_HTTP 0x70747468 // http:// or https:// URI
 #define PAYLOAD_MAGIC_PS4_SELF 0x1D3D154F // PS4 SELF payload
 #define PAYLOAD_MAGIC_PS5_SELF 0xEEF51454 // PS5 SELF payload
 
@@ -199,7 +199,7 @@ on_connection(int fd) {
     return;
   }
 
-  if(magic == PAYLOAD_MAGIC_FILE || magic == PAYLOAD_MAGIC_HTTP) {
+  if(magic == PAYLOAD_MAGIC_URI_FILE || magic == PAYLOAD_MAGIC_URI_HTTP) {
     if(payload_readuri(fd, uri, PATH_MAX) || uri_get_content(uri, &buf, &len)) {
       LOG_PERROR("read_uri");
       write(fd, "[elfldr.elf] Error reading URI payload\n\r\0", 41);
