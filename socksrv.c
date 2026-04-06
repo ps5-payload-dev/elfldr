@@ -201,7 +201,7 @@ on_connection(int fd) {
 
   if(magic == PAYLOAD_MAGIC_URI_FILE || magic == PAYLOAD_MAGIC_URI_HTTP) {
     if(payload_readuri(fd, uri, PATH_MAX) || uri_get_content(uri, &buf, &len)) {
-      LOG_PERROR("read_uri");
+      LOG_PERROR("payload_readuri");
       write(fd, "[elfldr.elf] Error reading URI payload\n\r\0", 41);
     }
 
