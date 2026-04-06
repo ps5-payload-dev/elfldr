@@ -43,6 +43,7 @@ along with this program; see the file COPYING. If not, see
 #define PAYLOAD_MAGIC_URI_HTTP 0x70747468 // http:// or https:// URI
 #define PAYLOAD_MAGIC_PS4_SELF 0x1D3D154F // PS4 SELF payload
 #define PAYLOAD_MAGIC_PS5_SELF 0xEEF51454 // PS5 SELF payload
+#define PAYLOAD_MAGIC_HTTP_GET 0x20544547 // HTTP GET request
 
 
 /**
@@ -175,6 +176,41 @@ payload_readuri(int fd, char* uri, size_t size) {
 }
 
 
+
+/**
+ * Read a HTTP (GET) request.
+ **/
+static int
+payload_readhttp(int fd, char* uri, size_t size) {
+  char buf[PATH_MAX+255] = {0};
+  ssize_t n;
+  char* p;
+
+  if((n=read(fd, buf, sizeof(buf)-1)) < 0) {
+    return -1;
+  }
+
+  if(memcmp(buf, "GET ", 4)) {
+    return -1;
+  }
+
+  if(!(p=strchr(buf+4, ' '))) {
+    return -1;
+  }
+
+  if(strstr(buf, "user-agent: rnps-action-cards")) {
+    return -1;
+  }
+
+  *p = 0;
+  snprintf(uri, size, "file:/%s", buf+4);
+
+  write(fd, "HTTP/1.1 200 OK\r\n\r\n", 19);
+
+  return 0;
+}
+
+
 /**
  * Process connection input.
  **/
@@ -203,6 +239,12 @@ on_connection(int fd) {
     if(payload_readuri(fd, uri, PATH_MAX) || uri_get_content(uri, &buf, &len)) {
       LOG_PERROR("payload_readuri");
       write(fd, "[elfldr.elf] Error reading URI payload\n\r\0", 41);
+    }
+
+  } else if(magic == PAYLOAD_MAGIC_HTTP_GET) {
+    if(payload_readhttp(fd, uri, PATH_MAX) || uri_get_content(uri, &buf, &len)) {
+      LOG_PERROR("payload_readhttp");
+      write(fd, "[elfldr.elf] Error reading HTTP payload\n\r\0", 42);
     }
 
   } else if(magic == PAYLOAD_MAGIC_ELF) {
