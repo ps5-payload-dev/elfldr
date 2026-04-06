@@ -43,6 +43,7 @@ along with this program; see the file COPYING. If not, see
 #define PAYLOAD_MAGIC_URI_HTTP 0x70747468 // http:// or https:// URI
 #define PAYLOAD_MAGIC_PS4_SELF 0x1D3D154F // PS4 SELF payload
 #define PAYLOAD_MAGIC_PS5_SELF 0xEEF51454 // PS5 SELF payload
+#define PAYLOAD_MAGIC_POST     0x54534F50 // POST
 
 
 /**
@@ -176,6 +177,62 @@ payload_readuri(int fd, char* uri, size_t size) {
 
 
 /**
+ * Read HTTP POST payload.
+ **/
+static int
+payload_readpost(int fd, uint8_t **buf, size_t *size) {
+  char headers[4096] = { 0 };
+  size_t headers_len = 0;
+  size_t content_len = 0;
+  char *val;
+  int n;
+
+  while(headers_len < sizeof(headers) - 1) {
+    if(read(fd, &headers[headers_len], 1) != 1) {
+      return -1;
+    }
+    headers_len++;
+    headers[headers_len] = 0;
+
+    if(headers_len >= 4 && !memcmp(&headers[headers_len - 4], "\r\n\r\n", 4)) {
+      break;
+    }
+  }
+
+  if(headers_len == sizeof(headers) - 1) {
+    return -1;
+  }
+
+  if((val = strstr(headers, "Content-Length:")) ||
+     (val = strstr(headers, "content-length:"))) {
+    content_len = strtoul(val + 15, NULL, 10);
+  }
+
+  if(!content_len) {
+    return -1;
+  }
+
+  if(!(*buf = malloc(content_len))) {
+    return -1;
+  }
+
+  *size = 0;
+  while(*size < content_len) {
+    if((n = read(fd, *buf + *size, content_len - *size)) <= 0) {
+      free(*buf);
+      *buf = 0;
+      return -1;
+    }
+    *size += n;
+  }
+
+  write(fd, "HTTP/1.1 200 OK\r\n\r\n", 19);
+
+  return 0;
+}
+
+
+/**
  * Process connection input.
  **/
 static void
@@ -204,14 +261,19 @@ on_connection(int fd) {
       LOG_PERROR("payload_readuri");
       write(fd, "[elfldr.elf] Error reading URI payload\n\r\0", 41);
     }
-
   } else if(magic == PAYLOAD_MAGIC_ELF) {
     if(elfldr_read(fd, &buf, &len)) {
       LOG_PERROR("elfldr_read");
       write(fd, "[elfldr.elf] Error reading ELF payload\n\r\0", 41);
     }
-
-  } else if(magic == PAYLOAD_MAGIC_PS4_SELF || magic == PAYLOAD_MAGIC_PS5_SELF) {
+  }
+  else if(magic == PAYLOAD_MAGIC_POST) {
+    if(payload_readpost(fd, &buf, &len)) {
+      LOG_PERROR("payload_readpost");
+      write(fd, "[elfldr.elf] Error reading POST payload\n\r\0", 42);
+    }
+  }
+  else if(magic == PAYLOAD_MAGIC_PS4_SELF || magic == PAYLOAD_MAGIC_PS5_SELF) {
     if(selfldr_read(fd, &buf, &len)) {
       LOG_PERROR("selfldr_read");
       write(fd, "[elfldr.elf] Error reading SELF payload\n\r\0", 42);
