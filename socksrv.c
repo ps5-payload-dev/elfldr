@@ -182,7 +182,13 @@ payload_readuri(int fd, char* uri, size_t size) {
  **/
 static int
 payload_readhttp(int fd, char* uri, size_t size) {
+  const char *headers = ("HTTP/1.1 200 OK\r\n"
+			 "Content-Type: text/plain; charset=utf-8\r\n"
+			 "Access-Control-Allow-Origin: *\r\n"
+			 "Connection: close\r\n"
+			 "\r\n");
   char buf[PATH_MAX+255] = {0};
+  char* param_uri;
   ssize_t n;
   char* p;
 
@@ -203,9 +209,15 @@ payload_readhttp(int fd, char* uri, size_t size) {
   }
 
   *p = 0;
-  snprintf(uri, size, "file:/%s", buf+4);
 
-  write(fd, "HTTP/1.1 200 OK\r\n\r\n", 19);
+  if((param_uri=uri_get_param(buf+4, "uri"))) {
+    strncpy(uri, param_uri, size);
+    free(param_uri);
+  } else {
+    snprintf(uri, size, "file:/%s", buf+4);
+  }
+
+  write(fd, headers, strlen(headers));
 
   return 0;
 }
