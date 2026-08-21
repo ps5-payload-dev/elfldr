@@ -234,6 +234,7 @@ on_connection(int fd) {
   size_t len = 0;
   int optval = 1;
   char* args = "";
+  char* pipe = "";
   int magic = 0;
 
   if(setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &optval, sizeof(optval)) < 0) {
@@ -281,10 +282,21 @@ on_connection(int fd) {
     if(!(args=uri_get_param(uri, "args"))) {
       args = strdup("");
     }
+    if(!(pipe=uri_get_param(uri, "pipe"))) {
+      pipe = strdup("1");
+    }
+
+    if(!strcmp(pipe, "0") ||
+       !strcasecmp(pipe, "false") ||
+       !strcasecmp(pipe, "no")) {
+      fd = -1;
+    }
+
     if(payload_spawn(filename, args, fd, buf, len) < 0) {
       write(fd, "[elfldr.elf] Error spawning payload\n\r\0", 38);
     }
     free(filename);
+    free(pipe);
     free(args);
     free(buf);
   }
