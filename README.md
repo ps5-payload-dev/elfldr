@@ -30,6 +30,9 @@ john@localhost:~$ echo "$PS5_PAYLOAD" | nc -q0 $PS5_HOST $PS5_PORT
 john@localhost:~$
 john@localhost:~$ export PS5_PAYLOAD=https://github.com/ps5-payload-dev/ftpsrv/releases/latest/download/ftpsrv-ps5.elf
 john@localhost:~$ echo "$PS5_PAYLOAD" | nc -q0 $PS5_HOST $PS5_PORT
+john@localhost:~$
+john@localhost:~$ export PS5_PAYLOAD=https://github.com/ps5-payload-dev/ftpsrv/releases/latest/download/ftpsrv-ps5.elf
+john@localhost:~$ curl "http://$PS5_HOST:$PS5_PORT?uri=$PS5_PAYLOAD"
 ```
 
 ## Building
