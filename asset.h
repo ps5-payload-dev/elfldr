@@ -28,5 +28,5 @@ along with this program; see the file COPYING. If not, see
 	  #name "_size:\n"			\
 	  ".quad " #name "_end - " #name "\n"	\
 	  ".previous\n");			\
-  extern const uint8_t name[];			\
-  extern const size_t name##_size;
+  extern const unsigned char name[];		\
+  extern const unsigned long name##_size;
