@@ -19,13 +19,13 @@ along with this program; see the file COPYING. If not, see
 
 #include <ps5/kernel.h>
 
+#include "asset.h"
 #include "elfldr.h"
 #include "log.h"
 #include "notify.h"
 #include "pt.h"
 
-
-#include "socksrv_elf.c"
+INCASSET(socksrv_elf, "socksrv.elf");
 
 
 /**
@@ -48,7 +48,7 @@ main() {
   notify("Spawning elfldr.elf...");
   LOG_PUTS("Spawning elfldr.elf...");
 
-  if(elfldr_sanity_check(socksrv_elf, socksrv_elf_len)) {
+  if(elfldr_sanity_check(socksrv_elf, socksrv_elf_size)) {
     LOG_PUTS("socksrv.elf is corrupted");
     return -1;
   }
@@ -73,7 +73,7 @@ main() {
     ret = -1;
   } else {
     signal(SIGCHLD, SIG_IGN);
-    ret = elfldr_spawn(-1, argv, socksrv_elf, socksrv_elf_len);
+    ret = elfldr_spawn(-1, argv, socksrv_elf, socksrv_elf_size);
   }
 
   // restore my privileges

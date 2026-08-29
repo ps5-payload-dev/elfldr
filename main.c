@@ -16,12 +16,13 @@ along with this program; see the file COPYING. If not, see
 
 #include <ps5/kernel.h>
 
+#include "asset.h"
 #include "elfldr.h"
 #include "log.h"
 #include "notify.h"
 #include "pt.h"
 
-#include "bootstrap_elf.c"
+INCASSET(bootstrap_elf, "bootstrap.elf");
 
 
 /**
@@ -40,7 +41,7 @@ main() {
   notify("Bootstrapping elfldr.elf...");
   LOG_PUTS("Bootstrapping elfldr.elf...");
 
-  if(elfldr_sanity_check(bootstrap_elf, bootstrap_elf_len)) {
+  if(elfldr_sanity_check(bootstrap_elf, bootstrap_elf_size)) {
     LOG_PUTS("bootstrap.elf is corrupted");
     return -1;
   }

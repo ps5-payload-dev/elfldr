@@ -59,8 +59,8 @@ along with this program; see the file COPYING. If not, see
  * Context structure for the ELF loader.
  **/
 typedef struct elfldr_ctx {
-  uint8_t* elf;
-  pid_t    pid;
+  const uint8_t* elf;
+  pid_t pid;
 
   intptr_t base_addr;
   size_t   base_size;
@@ -78,7 +78,7 @@ static const char* SceSpZeroConf = "/system/vsh/app/NPXS40112/eboot.bin";
 * Parse a R_X86_64_RELATIVE relocatable.
 **/
 static int
-r_relative(elfldr_ctx_t *ctx, Elf64_Rela* rela) {
+r_relative(elfldr_ctx_t *ctx, const Elf64_Rela* rela) {
   intptr_t* loc = ctx->base_mirror + rela->r_offset;
   intptr_t val = ctx->base_addr + rela->r_addend;
 
@@ -92,7 +92,7 @@ r_relative(elfldr_ctx_t *ctx, Elf64_Rela* rela) {
  * Parse a PT_LOAD program header.
  **/
 static int
-data_load(elfldr_ctx_t *ctx, Elf64_Phdr *phdr) {
+data_load(elfldr_ctx_t *ctx, const Elf64_Phdr *phdr) {
   void* data = ctx->base_mirror + phdr->p_vaddr;
 
   if(!phdr->p_memsz) {
@@ -110,9 +110,9 @@ data_load(elfldr_ctx_t *ctx, Elf64_Phdr *phdr) {
 
 
 int
-elfldr_sanity_check(uint8_t *elf, size_t elf_size) {
-  Elf64_Ehdr *ehdr = (Elf64_Ehdr*)elf;
-  Elf64_Phdr *phdr;
+elfldr_sanity_check(const uint8_t *elf, size_t elf_size) {
+  const Elf64_Ehdr *ehdr = (const Elf64_Ehdr*)elf;
+  const Elf64_Phdr *phdr;
 
   if(elf_size < sizeof(Elf64_Ehdr) ||
      elf_size < sizeof(Elf64_Phdr) + ehdr->e_phoff ||
@@ -125,7 +125,7 @@ elfldr_sanity_check(uint8_t *elf, size_t elf_size) {
     return -1;
   }
 
-  phdr = (Elf64_Phdr*)(elf + ehdr->e_phoff);
+  phdr = (const Elf64_Phdr*)(elf + ehdr->e_phoff);
   for(int i=0; i<ehdr->e_phnum; i++) {
     if(phdr[i].p_offset + phdr[i].p_filesz > elf_size) {
       return -1;
@@ -140,10 +140,10 @@ elfldr_sanity_check(uint8_t *elf, size_t elf_size) {
  * Load an ELF into the address space of a process with the given pid.
  **/
 static intptr_t
-elfldr_load(pid_t pid, uint8_t *elf) {
-  Elf64_Ehdr *ehdr = (Elf64_Ehdr*)elf;
-  Elf64_Phdr *phdr = (Elf64_Phdr*)(elf + ehdr->e_phoff);
-  Elf64_Shdr *shdr = (Elf64_Shdr*)(elf + ehdr->e_shoff);
+elfldr_load(pid_t pid, const uint8_t *elf) {
+  const Elf64_Ehdr *ehdr = (const Elf64_Ehdr*)elf;
+  const Elf64_Phdr *phdr = (const Elf64_Phdr*)(elf + ehdr->e_phoff);
+  const Elf64_Shdr *shdr = (const Elf64_Shdr*)(elf + ehdr->e_shoff);
 
   elfldr_ctx_t ctx = {.elf = elf, .pid=pid};
 
@@ -207,7 +207,7 @@ elfldr_load(pid_t pid, uint8_t *elf) {
       continue;
     }
 
-    Elf64_Rela* rela = (Elf64_Rela*)(elf + shdr[i].sh_offset);
+    const Elf64_Rela* rela = (const Elf64_Rela*)(elf + shdr[i].sh_offset);
     for(int j=0; j<shdr[i].sh_size/sizeof(Elf64_Rela); j++) {
       switch(rela[j].r_info & 0xffffffffl) {
       case R_X86_64_RELATIVE:
@@ -348,7 +348,7 @@ elfldr_payload_args(pid_t pid) {
  * Prepare registers of a process for execution of an ELF.
  **/
 static int
-elfldr_prepare_exec(pid_t pid, uint8_t *elf) {
+elfldr_prepare_exec(pid_t pid, const uint8_t *elf) {
   intptr_t entry;
   intptr_t args;
   struct reg r;
@@ -437,7 +437,7 @@ elfldr_raise_privileges(pid_t pid) {
  * Execute an ELF inside the process with the given pid.
  **/
 int
-elfldr_exec(pid_t pid, int stdio, uint8_t* elf) {
+elfldr_exec(pid_t pid, int stdio, const uint8_t* elf) {
   uint8_t caps[16];
   intptr_t jaildir;
   intptr_t rootdir;
@@ -600,7 +600,7 @@ elfldr_rfork_entry(void* argv) {
  * Execute an ELF inside a new process.
  **/
 pid_t
-elfldr_spawn(int stdio, char* const argv[], uint8_t* elf, size_t payload_size) {
+elfldr_spawn(int stdio, char* const argv[], const uint8_t* elf, size_t payload_size) {
   uint8_t int3instr = 0xcc;
   struct kevent evt;
   intptr_t brkpoint;
