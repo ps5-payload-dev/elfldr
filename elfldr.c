@@ -607,6 +607,8 @@ elfldr_spawn(int stdio, char* const argv[], const uint8_t* elf, size_t payload_s
   uint8_t orginstr;
   void *stack;
   pid_t pid;
+  int main_offset;
+  int old_fw;
   int kq;
 
   if((kq=kqueue()) < 0) {
@@ -647,12 +649,25 @@ elfldr_spawn(int stdio, char* const argv[], const uint8_t* elf, size_t payload_s
   close(kq);
 
   // The proc is now in the STOP state, with the instruction pointer pointing
-  // at the libkernel entry. Let the kernel assign process parameters accessed
-  // via sceKernelGetProcParam()
-  if(pt_syscall(pid, 599)) {
-    LOG_PT_PERROR(pid, "sys_dynlib_process_needed_and_relocate");
-    pt_detach(pid, SIGKILL);
-    return -1;
+  // at the libkernel entry.
+  old_fw = kernel_get_fw_version() < 0x14000000;
+  if(old_fw) {
+    // Let the kernel assign process parameters accessed via sceKernelGetProcParam()
+    if(pt_syscall(pid, 599)) {
+      LOG_PT_PERROR(pid, "sys_dynlib_process_needed_and_relocate");
+      pt_detach(pid, SIGKILL);
+      return -1;
+    }
+    main_offset = 58;
+  } else {
+    // The libkernel initialization function automatically invokes syscall #599.
+    // The kernel sets a flag that prevents subsequent invocations of this syscall.
+    // If the syscall succeeds, it calls _orbis_rtld_entry, which performs the
+    // actual initialization and sets a flag that is checked later by
+    // sceKernelLoadStartModule and __tls_get_addr. If initialization has not been
+    // performed, any attempt to load a PRX will fail with error 0x80020016.
+    // Therefore, do not invoke this syscall manually; let the system handle it.
+    main_offset = 63;
   }
 
   // Allow libc to allocate arbitrary amount of memory.
@@ -664,7 +679,7 @@ elfldr_spawn(int stdio, char* const argv[], const uint8_t* elf, size_t payload_s
     pt_detach(pid, SIGKILL);
     return -1;
   }
-  brkpoint += 58;// offset to invocation of main()
+  brkpoint += main_offset; // offset to invocation of main()
 
   if(kernel_mprotect(pid, brkpoint, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC)) {
     LOG_PUTS("kernel_mprotect failed");
