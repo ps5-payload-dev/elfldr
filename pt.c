@@ -307,6 +307,37 @@ pt_syscall(pid_t pid, int sysno, ...) {
 }
 
 
+int
+pt_breakat(pid_t pid, intptr_t brkpoint) {
+  uint8_t int3instr = 0xcc;
+  uint8_t orginstr;
+
+  if(kernel_mprotect(pid, brkpoint, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC)) {
+    return -1;
+  }
+
+  if(pt_copyout(pid, brkpoint, &orginstr, sizeof(orginstr))) {
+    return -1;
+  }
+  if(pt_copyin(pid, &int3instr, brkpoint, sizeof(int3instr))) {
+    return -1;
+  }
+
+  // Continue execution until we hit the breakpoint, then remove it.
+  if(pt_continue(pid, SIGCONT)) {
+    return -1;
+  }
+  if(waitpid(pid, 0, 0) == -1) {
+    return -1;
+  }
+  if(pt_copyin(pid, &orginstr, brkpoint, sizeof(orginstr))) {
+    return -1;
+  }
+
+  return 0;
+}
+
+
 intptr_t
 pt_mmap(pid_t pid, intptr_t addr, size_t len, int prot, int flags,
 	int fd, off_t off) {

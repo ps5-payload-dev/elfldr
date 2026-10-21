@@ -42,6 +42,7 @@ short pt_getshort(pid_t pid, intptr_t addr);
 int   pt_getint(pid_t pid, intptr_t addr);
 long  pt_getlong(pid_t pid, intptr_t addr);
 
+int pt_breakat(pid_t pid, intptr_t brkpoint);
 long pt_syscall(pid_t pid, int sysno, ...);
 intptr_t pt_resolve(pid_t pid, const char* nid);
 
