@@ -26,12 +26,62 @@ INCASSET(bootstrap_elf, "bootstrap.elf");
 
 
 /**
- * We are running inside bdj.elf, attach to SceRedisServer and run bootstrap.elf.
+ * Flip kernel flags to enable ptrace syscalls.
+ **/
+static int
+enable_debug_mode(void) {
+  uint8_t qa_flags[16];
+  uint32_t sec_flags;
+  uint8_t utok_flags;
+  uint8_t target_id;
+
+  if(kernel_get_targetid(&target_id)) {
+    return -1;
+  }
+  if(kernel_get_secflags(&sec_flags)) {
+    return -1;
+  }
+  if(kernel_get_utokflags(&utok_flags)) {
+    return -1;
+  }
+  if(kernel_get_qaflags(qa_flags)) {
+    return -1;
+  }
+
+  if(target_id != 0x82) {
+    if(kernel_set_targetid(0x82)) {
+      return -1;
+    }
+  }
+  if((utok_flags & 0x01) != 0x01) {
+    if(kernel_set_utokflags(utok_flags | 0x01)) {
+      return -1;
+    }
+  }
+  if((sec_flags & 0x14) != 0x14) {
+    if(kernel_set_secflags(sec_flags | 0x14)) {
+      return -1;
+    }
+  }
+  if((qa_flags[1] & 0x03) != 0x03 || (qa_flags[2] & 0x01) != 0x01) {
+    qa_flags[1] |= 0x03;
+    qa_flags[2] |= 0x01;
+    if(kernel_set_qaflags(qa_flags)) {
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+
+/**
+ * We are running inside a hijacked process,
+ * attach to SceRedisServer and run bootstrap.elf.
  **/
 int
 main() {
   pid_t mypid = getpid();
-  uint8_t qa_flags[16];
   uint8_t caps[16];
   uint64_t authid;
   intptr_t vnode;
@@ -47,16 +97,9 @@ main() {
   }
 
   // enable debugging with ptrace
-  if(kernel_get_qaflags(qa_flags)) {
-    LOG_PUTS("kernel_get_qa_flags failed");
+  if(enable_debug_mode()) {
+    LOG_PUTS("enable_debug_mode failed");
     return -1;
-  }
-  if(!(qa_flags[1] & 0x03)) {
-    qa_flags[1] |= 0x03;
-    if(kernel_set_qaflags(qa_flags)) {
-      LOG_PUTS("kernel_set_qa_flags failed");
-      return -1;
-    }
   }
 
   // backup my privileges
@@ -107,4 +150,3 @@ main() {
 
   return ret;
 }
-
